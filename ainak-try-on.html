@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ویترین عینک | امتحان مجازی</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/tracking-min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/data/face-min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/data/eye-min.js"></script>
+<style>
+  :root{
+    --brass:#B08D57; --brass-light:#D8B978; --ink:#12151C;
+    --panel:#181C26; --panel-2:#1F2430; --line:#2C3140;
+    --paper:#EFEBE2; --paper-dim:#B9B4A6; --ok:#7FB88B; --err:#D08370;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:radial-gradient(ellipse at 20% -10%, #232838 0%, transparent 55%),
+      radial-gradient(ellipse at 100% 110%, #1a1e29 0%, transparent 50%), var(--ink);
+    color:var(--paper); font-family:'Vazirmatn', sans-serif; min-height:100vh; padding:26px 18px 60px;
+  }
+  .mono{font-family:'DM Mono', monospace; letter-spacing:.03em;}
+  .wrap{max-width:1180px; margin:0 auto;}
+  header.top{display:flex; align-items:flex-end; justify-content:space-between; border-bottom:1px solid var(--line);
+    padding-bottom:16px; margin-bottom:22px; flex-wrap:wrap; gap:12px;}
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{width:38px;height:38px; border:1.5px solid var(--brass); border-radius:50%; position:relative; flex-shrink:0;}
+  .brand-mark::after{content:"";position:absolute; right:-13px; top:50%; width:8px; height:1.5px; background:var(--brass);}
+  .brand-mark::before{content:"";position:absolute; left:-13px; top:50%; width:8px; height:1.5px; background:var(--brass);}
+  .brand-text h1{font-size:19px; margin:0; font-weight:800;}
+  .brand-text span{font-size:11px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.1em;}
+  .mode-toggle{font-size:12px; color:var(--paper-dim); cursor:pointer; text-decoration:underline; text-underline-offset:3px;}
+  .mode-toggle:hover{color:var(--brass-light);}
+  .stage{display:grid; grid-template-columns:1.5fr 1fr; gap:20px;}
+  @media (max-width:880px){ .stage{grid-template-columns:1fr;} }
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:18px; margin-bottom:16px;}
+  .panel h2{font-size:11px; text-transform:uppercase; letter-spacing:.13em; color:var(--brass-light);
+    margin:0 0 14px; display:flex; align-items:center; gap:8px;}
+  .panel h2::after{content:""; flex:1; height:1px; background:var(--line);}
+  .cam-card{background:var(--panel); border:1px solid var(--line); border-radius:18px; overflow:hidden; position:relative;}
+  .cam-head{display:flex; justify-content:space-between; align-items:center; padding:13px 18px; border-bottom:1px solid var(--line);}
+  .cam-head .eyebrow{font-size:11px; color:var(--brass-light); text-transform:uppercase; letter-spacing:.13em;}
+  #status-dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--paper-dim); margin-left:6px;}
+  #status-dot.live{background:var(--ok); box-shadow:0 0 8px var(--ok);}
+  #status-dot.err{background:var(--err);}
+  .status-txt{font-size:12px; color:var(--paper-dim); max-width:60%; text-align:left;}
+  .video-box{position:relative; width:100%; aspect-ratio:4/3; background:#0b0d12; display:flex; align-items:center; justify-content:center;}
+  video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1);}
+  canvas#overlay{position:absolute; inset:0; width:100%; height:100%; transform:scaleX(-1);}
+  .placeholder{color:var(--paper-dim); text-align:center; font-size:13px; z-index:2; padding:0 30px; line-height:1.9;}
+  .placeholder b{color:var(--paper); display:block; font-size:15px; margin-bottom:6px;}
+  .cam-controls{display:flex; gap:10px; padding:14px 18px; border-top:1px solid var(--line); flex-wrap:wrap;}
+  button{font-family:'Vazirmatn', sans-serif; cursor:pointer; border:none; border-radius:10px; font-size:13px; font-weight:600; padding:10px 16px; transition:filter .15s, transform .1s;}
+  button:active{transform:scale(.97);}
+  .btn-primary{background:var(--brass); color:#1a1206;}
+  .btn-primary:hover{filter:brightness(1.1);}
+  .btn-ghost{background:transparent; color:var(--paper); border:1px solid var(--line);}
+  .btn-ghost:hover{border-color:var(--brass);}
+  .btn-ghost.active{border-color:var(--brass); color:var(--brass-light); background:rgba(176,141,87,.1);}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  button.danger{background:transparent; color:var(--err); border:1px solid #4a2e2a; padding:5px 10px; font-size:11px;}
+  select{font-family:'Vazirmatn', sans-serif; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; color:var(--paper); font-size:13px;}
+
+  .catalog-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+  .cat-item{background:var(--panel-2); border:1.5px solid var(--line); border-radius:12px; padding:8px; text-align:center; cursor:pointer;}
+  .cat-item img{width:100%; height:56px; object-fit:contain; display:block; margin-bottom:6px; background:#0e1117; border-radius:6px;}
+  .cat-item span{font-size:10.5px; color:var(--paper-dim); display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cat-item.active{border-color:var(--brass); background:rgba(176,141,87,.09);}
+  .cat-item.active span{color:var(--brass-light);}
+  .empty-note{font-size:12px; color:var(--paper-dim); line-height:1.9; grid-column:1/-1;}
+
+  .variant-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px dashed var(--line);}
+  .variant-swatch{width:44px; height:44px; border-radius:10px; border:2px solid var(--line); cursor:pointer; overflow:hidden; position:relative; flex-shrink:0;}
+  .variant-swatch img{width:100%; height:100%; object-fit:contain; background:#0e1117;}
+  .variant-swatch.active{border-color:var(--brass);}
+  .variant-label{font-size:9.5px; color:var(--paper-dim); text-align:center; margin-top:3px; max-width:44px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+
+  .admin-box{border:1.5px dashed var(--line); border-radius:14px; padding:16px; text-align:center;}
+  .admin-box input[type=file]{display:none;}
+  .admin-box label.upload-lbl{display:inline-block; padding:10px 18px; background:var(--brass); color:#1a1206; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer;}
+  .admin-tip{font-size:11.5px; color:var(--paper-dim); line-height:1.8; margin-top:10px;}
+  .calib-wrap{margin-top:14px;}
+  .calib-canvas-box{position:relative; display:inline-block; border-radius:10px; overflow:hidden; border:1px solid var(--line);}
+  .calib-canvas-box canvas#calib-canvas{display:block; cursor:crosshair; touch-action:none;}
+  #calib-magnifier{position:absolute; width:110px; height:110px; border-radius:50%; border:2px solid var(--brass); pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,.5); z-index:5;}
+  .calib-hint{font-size:12px; color:var(--brass-light); margin:8px 0;}
+  .calib-row{display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap;}
+  .calib-row input[type=text]{flex:1; min-width:140px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; color:var(--paper); font-family:inherit; font-size:13px;}
+  .calib-row label.chk{font-size:12px; color:var(--paper-dim); display:flex; align-items:center; gap:5px;}
+  .field-label{font-size:11px; color:var(--paper-dim); display:block; margin-bottom:5px;}
+
+  .admin-list{margin-top:14px; display:flex; flex-direction:column; gap:10px;}
+  .admin-product{background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:10px 12px;}
+  .admin-product-head{display:flex; align-items:center; gap:10px;}
+  .admin-product-head b{flex:1; font-size:13px;}
+  .admin-variants{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  .admin-variant{display:flex; align-items:center; gap:6px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:4px 6px;}
+  .admin-variant img{width:30px; height:22px; object-fit:contain; background:#0e1117; border-radius:4px;}
+  .admin-variant span{font-size:11px;}
+
+  .tip{font-size:11.5px; color:var(--paper-dim); line-height:1.8; margin-top:8px;}
+  .tip b{color:var(--paper);}
+  .snap-strip{display:flex; gap:8px; overflow-x:auto; padding-top:4px;}
+  .snap-strip img{width:64px; height:48px; object-fit:cover; border-radius:8px; border:1px solid var(--line); cursor:pointer;}
+  .empty-snaps{font-size:12px; color:var(--paper-dim);}
+  .row{display:flex; justify-content:space-between; align-items:center; font-size:12.5px; color:var(--paper-dim); margin-top:12px;}
+  input[type=range]{width:130px; accent-color:var(--brass);}
+  footer{text-align:center; font-size:11px; color:var(--paper-dim); margin-top:30px;}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-text"><h1>ویترین عینک</h1><span class="mono">Virtual Try-On</span></div>
+    </div>
+    <div class="mode-toggle" id="mode-toggle">حالت فروشگاه (افزودن عینک)</div>
+  </header>
+
+  <div id="customer-mode">
+    <div class="stage">
+      <div class="cam-card">
+        <div class="cam-head">
+          <div class="eyebrow mono">دوربین زنده</div>
+          <div class="status-txt"><span id="status-dot"></span><span id="status-text">دوربین خاموش است</span></div>
+        </div>
+        <div class="video-box" id="video-box">
+          <div class="placeholder" id="placeholder">
+            <b>یک عینک انتخاب کنید و دوربین را فعال کنید</b>
+            چهره خود را در مرکز کادر قرار دهید.
+          </div>
+          <video id="video" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+        <div class="cam-controls">
+          <button class="btn-primary" id="btn-start">فعال‌سازی دوربین</button>
+          <button class="btn-ghost" id="btn-switch" disabled>تعویض دوربین</button>
+          <button class="btn-ghost" id="btn-manual" disabled>تنظیم دستی چشم‌ها</button>
+          <button class="btn-ghost" id="btn-snap" disabled>ثبت عکس</button>
+        </div>
+      </div>
+      <div class="side">
+        <div class="panel">
+          <h2>عینک‌های موجود</h2>
+          <div class="catalog-grid" id="catalog-grid"></div>
+          <div class="variant-row hidden" id="variant-row"></div>
+          <div class="row">
+            <span>اندازه عینک</span>
+            <input type="range" id="size-slider" min="70" max="140" value="100">
+          </div>
+        </div>
+        <div class="panel">
+          <h2>عکس‌های ثبت‌شده</h2>
+          <div class="snap-strip" id="snap-strip"><span class="empty-snaps">هنوز عکسی ثبت نشده است</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-mode" class="hidden">
+    <div class="panel">
+      <h2>افزودن رنگ/عکس جدید</h2>
+      <label class="field-label">این عکس مربوط به کدام محصول است؟</label>
+      <select id="product-select" style="width:100%; margin-bottom:10px;"></select>
+      <div id="new-product-name-wrap" class="hidden">
+        <label class="field-label">نام محصول جدید</label>
+        <input type="text" id="new-product-name" placeholder="مثلاً: کلاسیک مستطیلی" style="width:100%; margin-bottom:10px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; color:var(--paper); font-family:inherit;">
+      </div>
+      <div class="admin-box" id="upload-box">
+        <label class="upload-lbl" for="file-input">انتخاب عکس عینک</label>
+        <input type="file" id="file-input" accept="image/*">
+        <div class="admin-tip">عینک را روبه‌رو، صاف و روی یک پس‌زمینه ساده (ترجیحاً سفید) عکس بگیرید.</div>
+      </div>
+      <div class="calib-wrap hidden" id="calib-wrap">
+        <div class="calib-hint" id="calib-hint">روی <b>مرکز عدسی سمت راست تصویر</b> کلیک کنید</div>
+        <div class="calib-canvas-box">
+          <canvas id="calib-canvas"></canvas>
+          <canvas id="calib-magnifier" class="hidden"></canvas>
+        </div>
+        <div class="calib-row">
+          <button class="btn-ghost" id="btn-rotate-item" type="button">چرخش تصویر ۹۰°</button>
+          <button class="btn-ghost" id="btn-reset-points" type="button">بازنشانی نقطه‌ها</button>
+        </div>
+        <div class="calib-row">
+          <input type="text" id="color-name" placeholder="نام رنگ این عکس (مثلاً: مشکی)">
+          <label class="chk"><input type="checkbox" id="bg-remove" checked> حذف پس‌زمینه سفید</label>
+        </div>
+        <div class="calib-row">
+          <button class="btn-primary" id="btn-add-item" disabled>افزودن این رنگ به محصول</button>
+          <button class="btn-ghost" id="btn-cancel-item">انصراف</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>کاتالوگ فعلی (<span id="cat-count">0</span> محصول)</h2>
+      <div class="admin-list" id="admin-list"></div>
+      <div class="tip" id="admin-empty">هنوز عینکی اضافه نشده است.</div>
+    </div>
+    <div class="panel">
+      <h2>انتشار برای مشتریان</h2>
+      <div class="tip">وقتی کاتالوگ آماده شد، فایل نهایی را دانلود کنید و جایگزین نسخه قبلی روی سایت خود کنید.</div>
+      <div class="calib-row"><button class="btn-primary" id="btn-export">دانلود فایل نهایی برای مشتریان</button></div>
+    </div>
+  </div>
+
+  <footer class="mono">تشخیص چهره در مرورگر شما اجرا می‌شود — تصویری ذخیره یا ارسال نمی‌شود.</footer>
+</div>
+
+<script id="main-script">
+const EMBEDDED_CATALOG = [];
+(function(){
+  // catalog = [{ id, name, variants:[{id,colorName,dataUrl,pR,pL}, ...] }, ...]
+  let catalog = JSON.parse(JSON.stringify(EMBEDDED_CATALOG));
+  let selectedProductId = catalog.length ? catalog[0].id : null;
+  let selectedVariantId = catalog.length ? catalog[0].variants[0].id : null;
+  let sizeScale = 1.0;
+  const loadedImgs = {};
+
+  const video = document.getElementById('video');
+  const overlay = document.getElementById('overlay');
+  const ctx = overlay.getContext('2d');
+  const placeholder = document.getElementById('placeholder');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const btnStart = document.getElementById('btn-start');
+  const btnSwitch = document.getElementById('btn-switch');
+  const btnManual = document.getElementById('btn-manual');
+  const btnSnap = document.getElementById('btn-snap');
+  const snapStrip = document.getElementById('snap-strip');
+  const catalogGrid = document.getElementById('catalog-grid');
+  const variantRow = document.getElementById('variant-row');
+  const sizeSlider = document.getElementById('size-slider');
+  const modeToggle = document.getElementById('mode-toggle');
+  const customerModeEl = document.getElementById('customer-mode');
+  const adminModeEl = document.getElementById('admin-mode');
+  const adminList = document.getElementById('admin-list');
+  const adminEmpty = document.getElementById('admin-empty');
+  const catCount = document.getElementById('cat-count');
+  const productSelect = document.getElementById('product-select');
+  const newProductWrap = document.getElementById('new-product-name-wrap');
+  const newProductName = document.getElementById('new-product-name');
+
+  let inAdmin = catalog.length === 0;
+  function applyMode(){
+    if(inAdmin){ customerModeEl.classList.add('hidden'); adminModeEl.classList.remove('hidden'); modeToggle.textContent = 'بازگشت به حالت مشتری'; refreshProductSelect(); }
+    else { customerModeEl.classList.remove('hidden'); adminModeEl.classList.add('hidden'); modeToggle.textContent = 'حالت فروشگاه (افزودن عینک)'; }
+  }
+  modeToggle.addEventListener('click', function(){ inAdmin = !inAdmin; applyMode(); });
+  applyMode();
+
+  sizeSlider.addEventListener('input', function(){ sizeScale = sizeSlider.value/100; });
+
+  function getVariant(product, variantId){ return product.variants.find(function(v){ return v.id===variantId; }); }
+  function currentProduct(){ return catalog.find(function(p){ return p.id===selectedProductId; }); }
+  function currentVariant(){ const p = currentProduct(); return p ? getVariant(p, selectedVariantId) : null; }
+
+  function getImg(variant){
+    if(loadedImgs[variant.id]) return Promise.resolve(loadedImgs[variant.id]);
+    return new Promise(function(res){
+      const im = new Image();
+      im.onload = function(){ loadedImgs[variant.id] = im; res(im); };
+      im.src = variant.dataUrl;
+    });
+  }
+  function preloadAll(){ catalog.forEach(function(p){ p.variants.forEach(function(v){ getImg(v); }); }); }
+
+  function renderCatalogGrid(){
+    catalogGrid.innerHTML = '';
+    if(catalog.length === 0){
+      const p = document.createElement('div'); p.className = 'empty-note';
+      p.textContent = 'هنوز هیچ عینکی توسط فروشگاه اضافه نشده است.';
+      catalogGrid.appendChild(p); variantRow.classList.add('hidden'); return;
+    }
+    catalog.forEach(function(product){
+      const el = document.createElement('div');
+      el.className = 'cat-item' + (product.id===selectedProductId ? ' active':'');
+      const img = document.createElement('img'); img.src = product.variants[0].dataUrl;
+      const span = document.createElement('span'); span.textContent = product.name;
+      el.appendChild(img); el.appendChild(span);
+      el.addEventListener('click', function(){
+        selectedProductId = product.id;
+        selectedVariantId = product.variants[0].id;
+        document.querySelectorAll('.cat-item').forEach(function(e){ e.classList.remove('active'); });
+        el.classList.add('active');
+        renderVariantRow();
+      });
+      catalogGrid.appendChild(el);
+    });
+    renderVariantRow();
+  }
+  function renderVariantRow(){
+    const product = currentProduct();
+    variantRow.innerHTML = '';
+    if(!product || product.variants.length < 2){ variantRow.classList.add('hidden'); return; }
+    variantRow.classList.remove('hidden');
+    product.variants.forEach(function(v){
+      const wrap = document.createElement('div');
+      const sw = document.createElement('div');
+      sw.className = 'variant-swatch' + (v.id===selectedVariantId ? ' active':'');
+      const img = document.createElement('img'); img.src = v.dataUrl;
+      sw.appendChild(img);
+      sw.addEventListener('click', function(){
+        selectedVariantId = v.id;
+        document.querySelectorAll('.variant-swatch').forEach(function(e){ e.classList.remove('active'); });
+        sw.classList.add('active');
+      });
+      const lbl = document.createElement('div'); lbl.className='variant-label'; lbl.textContent = v.colorName;
+      wrap.appendChild(sw); wrap.appendChild(lbl);
+      variantRow.appendChild(wrap);
+    });
+  }
+
+  function refreshProductSelect(){
+    productSelect.innerHTML = '';
+    catalog.forEach(function(p){
+      const opt = document.createElement('option'); opt.value = p.id; opt.textContent = p.name;
+      productSelect.appendChild(opt);
+    });
+    const newOpt = document.createElement('option'); newOpt.value = '__new__'; newOpt.textContent = '+ محصول جدید';
+    productSelect.appendChild(newOpt);
+    if(catalog.length === 0){ productSelect.value = '__new__'; newProductWrap.classList.remove('hidden'); }
+    else { productSelect.value = catalog[0].id; newProductWrap.classList.add('hidden'); }
+  }
+  productSelect.addEventListener('change', function(){
+    newProductWrap.classList.toggle('hidden', productSelect.value !== '__new__');
+  });
+
+  function renderAdminList(){
+    adminList.innerHTML = '';
+    catCount.textContent = catalog.length;
+    adminEmpty.style.display = catalog.length ? 'none' : 'block';
+    catalog.forEach(function(product){
+      const box = document.createElement('div'); box.className = 'admin-product';
+      const head = document.createElement('div'); head.className = 'admin-product-head';
+      const b = document.createElement('b'); b.textContent = product.name;
+      const delProd = document.createElement('button'); delProd.className='danger'; delProd.textContent='حذف محصول';
+      delProd.addEventListener('click', function(){
+        catalog = catalog.filter(function(p){ return p.id !== product.id; });
+        if(selectedProductId === product.id){ selectedProductId = catalog.length ? catalog[0].id : null; selectedVariantId = catalog.length ? catalog[0].variants[0].id : null; }
+        renderAdminList(); renderCatalogGrid(); refreshProductSelect();
+      });
+      head.appendChild(b); head.appendChild(delProd);
+      const vwrap = document.createElement('div'); vwrap.className = 'admin-variants';
+      product.variants.forEach(function(v){
+        const row = document.createElement('div'); row.className = 'admin-variant';
+        const img = document.createElement('img'); img.src = v.dataUrl;
+        const span = document.createElement('span'); span.textContent = v.colorName;
+        const del = document.createElement('button'); del.className='danger'; del.textContent='×';
+        del.addEventListener('click', function(){
+          product.variants = product.variants.filter(function(x){ return x.id !== v.id; });
+          if(product.variants.length === 0){ catalog = catalog.filter(function(p){ return p.id !== product.id; }); }
+          renderAdminList(); renderCatalogGrid(); refreshProductSelect();
+        });
+        row.appendChild(img); row.appendChild(span); row.appendChild(del);
+        vwrap.appendChild(row);
+      });
+      box.appendChild(head); box.appendChild(vwrap);
+      adminList.appendChild(box);
+    });
+  }
+  renderCatalogGrid(); renderAdminList();
+
+  // ---------------- ADMIN: upload + calibration ----------------
+  const fileInput = document.getElementById('file-input');
+  const calibWrap = document.getElementById('calib-wrap');
+  const calibCanvas = document.getElementById('calib-canvas');
+  const calibCtx = calibCanvas.getContext('2d');
+  const magnifier = document.getElementById('calib-magnifier');
+  const magCtx = magnifier.getContext('2d');
+  const calibHint = document.getElementById('calib-hint');
+  const colorNameInput = document.getElementById('color-name');
+  const bgRemoveChk = document.getElementById('bg-remove');
+  const btnAddItem = document.getElementById('btn-add-item');
+  const btnCancelItem = document.getElementById('btn-cancel-item');
+  const btnRotateItem = document.getElementById('btn-rotate-item');
+  const btnResetPoints = document.getElementById('btn-reset-points');
+  let baseImg = null, rotation = 0, pendingCanvas = null, pendingPoints = [];
+  let calibScale = 1, draggingPointIdx = -1;
+
+  function buildRotatedCanvas(){
+    const c = document.createElement('canvas');
+    if(rotation === 90 || rotation === 270){ c.width = baseImg.height; c.height = baseImg.width; }
+    else { c.width = baseImg.width; c.height = baseImg.height; }
+    const cx = c.getContext('2d');
+    cx.translate(c.width/2, c.height/2);
+    cx.rotate(rotation*Math.PI/180);
+    cx.drawImage(baseImg, -baseImg.width/2, -baseImg.height/2);
+    pendingCanvas = c;
+  }
+
+  fileInput.addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev){
+      const raw = new Image();
+      raw.onload = function(){
+        const maxDim = 900;
+        let w = raw.width, h = raw.height;
+        const scale = Math.min(1, maxDim/Math.max(w,h));
+        w = Math.round(w*scale); h = Math.round(h*scale);
+        const off = document.createElement('canvas'); off.width = w; off.height = h;
+        off.getContext('2d').drawImage(raw, 0, 0, w, h);
+        const resized = new Image();
+        resized.onload = function(){
+          baseImg = resized; rotation = 0; pendingPoints = [];
+          buildRotatedCanvas();
+          btnAddItem.disabled = true;
+          calibHint.innerHTML = 'اگر تصویر کج/وارونه است اول «چرخش تصویر» را بزنید، سپس روی <b>مرکز عدسی سمت راست تصویر</b> ضربه بزنید (بعداً می‌توانید نقطه را بکشید و دقیق‌تر کنید)';
+          calibWrap.classList.remove('hidden');
+          drawCalib();
+        };
+        resized.src = off.toDataURL('image/png');
+      };
+      raw.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = '';
+  });
+
+  btnRotateItem.addEventListener('click', function(){
+    if(!baseImg) return;
+    rotation = (rotation + 90) % 360; pendingPoints = []; btnAddItem.disabled = true;
+    calibHint.innerHTML = 'روی <b>مرکز عدسی سمت راست تصویر</b> ضربه بزنید';
+    buildRotatedCanvas(); drawCalib();
+  });
+  btnResetPoints.addEventListener('click', function(){
+    if(!pendingCanvas) return;
+    pendingPoints = []; btnAddItem.disabled = true;
+    calibHint.innerHTML = 'روی <b>مرکز عدسی سمت راست تصویر</b> ضربه بزنید';
+    drawCalib();
+  });
+
+  function drawCalib(){
+    const maxW = Math.min(460, calibCanvas.parentElement.clientWidth || 460);
+    calibScale = Math.min(1, maxW/pendingCanvas.width);
+    calibCanvas.width = pendingCanvas.width*calibScale;
+    calibCanvas.height = pendingCanvas.height*calibScale;
+    calibCtx.drawImage(pendingCanvas, 0, 0, calibCanvas.width, calibCanvas.height);
+    const labels = ['R','L'];
+    pendingPoints.forEach(function(p, i){
+      const cx = p.x*calibScale, cy = p.y*calibScale;
+      calibCtx.beginPath(); calibCtx.moveTo(cx-10,cy); calibCtx.lineTo(cx+10,cy);
+      calibCtx.moveTo(cx,cy-10); calibCtx.lineTo(cx,cy+10);
+      calibCtx.strokeStyle = '#D8B978'; calibCtx.lineWidth = 2; calibCtx.stroke();
+      calibCtx.beginPath(); calibCtx.arc(cx,cy,9,0,Math.PI*2);
+      calibCtx.strokeStyle = '#D8B978'; calibCtx.lineWidth = 2; calibCtx.stroke();
+      calibCtx.fillStyle = '#12151C'; calibCtx.font = 'bold 11px sans-serif';
+      calibCtx.fillText(labels[i], cx+12, cy-8);
+    });
+  }
+
+  function pointFromEvent(e){
+    const r = calibCanvas.getBoundingClientRect();
+    const dispX = e.clientX - r.left, dispY = e.clientY - r.top;
+    return { dispX:dispX, dispY:dispY, imgX: dispX/calibScale, imgY: dispY/calibScale };
+  }
+  function updateMagnifier(dispX, dispY, imgX, imgY){
+    magnifier.width = 110; magnifier.height = 110;
+    const zoom = 3.2, srcSize = 110/zoom;
+    magCtx.imageSmoothingEnabled = false;
+    magCtx.clearRect(0,0,110,110);
+    magCtx.drawImage(pendingCanvas, imgX-srcSize/2, imgY-srcSize/2, srcSize, srcSize, 0, 0, 110, 110);
+    magCtx.strokeStyle = '#D8B978'; magCtx.lineWidth = 1;
+    magCtx.beginPath(); magCtx.moveTo(55,0); magCtx.lineTo(55,110); magCtx.moveTo(0,55); magCtx.lineTo(110,55); magCtx.stroke();
+    let left = dispX - 55, top = dispY - 130;
+    if(top < 0) top = dispY + 24;
+    magnifier.style.left = left+'px'; magnifier.style.top = top+'px';
+    magnifier.classList.remove('hidden');
+  }
+  function hideMagnifier(){ magnifier.classList.add('hidden'); }
+
+  calibCanvas.addEventListener('pointerdown', function(e){
+    if(!pendingCanvas) return;
+    const pt = pointFromEvent(e);
+    let nearestIdx = -1, nearestDist = 999;
+    pendingPoints.forEach(function(p, i){
+      const d = Math.hypot(p.x*calibScale-pt.dispX, p.y*calibScale-pt.dispY);
+      if(d < nearestDist){ nearestDist = d; nearestIdx = i; }
+    });
+    if(nearestIdx >= 0 && nearestDist < 20){
+      draggingPointIdx = nearestIdx;
+    } else if(pendingPoints.length < 2){
+      pendingPoints.push({x:pt.imgX, y:pt.imgY});
+      draggingPointIdx = pendingPoints.length - 1;
+    } else { return; }
+    calibCanvas.setPointerCapture(e.pointerId);
+    drawCalib();
+    updateMagnifier(pt.dispX, pt.dispY, pt.imgX, pt.imgY);
+  });
+  calibCanvas.addEventListener('pointermove', function(e){
+    if(draggingPointIdx < 0) return;
+    const pt = pointFromEvent(e);
+    pendingPoints[draggingPointIdx] = {x:pt.imgX, y:pt.imgY};
+    drawCalib();
+    updateMagnifier(pt.dispX, pt.dispY, pt.imgX, pt.imgY);
+  });
+  function endDrag(){
+    if(draggingPointIdx < 0) return;
+    draggingPointIdx = -1;
+    hideMagnifier();
+    if(pendingPoints.length === 1){ calibHint.innerHTML = 'حالا روی <b>مرکز عدسی سمت چپ تصویر</b> ضربه بزنید'; }
+    else if(pendingPoints.length === 2){ calibHint.innerHTML = 'برای دقیق‌تر شدن می‌توانید نقطه‌ها را بکشید. سپس نام رنگ را بنویسید و «افزودن» را بزنید.'; btnAddItem.disabled = false; }
+  }
+  calibCanvas.addEventListener('pointerup', endDrag);
+  calibCanvas.addEventListener('pointercancel', endDrag);
+
+  function resetPending(){
+    calibWrap.classList.add('hidden'); baseImg=null; pendingCanvas=null; rotation=0; pendingPoints=[]; colorNameInput.value=''; hideMagnifier();
+  }
+  btnCancelItem.addEventListener('click', resetPending);
+
+  function removeWhiteBackground(img){
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const cx = c.getContext('2d'); cx.drawImage(img, 0, 0);
+    const data = cx.getImageData(0,0,c.width,c.height); const d = data.data;
+    const corners = [0, (c.width-1)*4, (c.height-1)*c.width*4, ((c.height-1)*c.width+(c.width-1))*4];
+    let br=0,bg=0,bb=0;
+    corners.forEach(function(i){ br+=d[i]; bg+=d[i+1]; bb+=d[i+2]; });
+    br/=4; bg/=4; bb/=4;
+    const threshold = 42;
+    for(let i=0;i<d.length;i+=4){
+      const dist = Math.sqrt(Math.pow(d[i]-br,2)+Math.pow(d[i+1]-bg,2)+Math.pow(d[i+2]-bb,2));
+      if(dist < threshold){ d[i+3] = 0; }
+      else if(dist < threshold*1.8){ d[i+3] = Math.round(d[i+3] * ((dist-threshold)/(threshold*0.8))); }
+    }
+    cx.putImageData(data,0,0);
+    return c.toDataURL('image/png');
+  }
+
+  btnAddItem.addEventListener('click', function(){
+    let dataUrl;
+    if(bgRemoveChk.checked){ dataUrl = removeWhiteBackground(pendingCanvas); }
+    else {
+      const c = document.createElement('canvas'); c.width = pendingCanvas.width; c.height = pendingCanvas.height;
+      c.getContext('2d').drawImage(pendingCanvas,0,0); dataUrl = c.toDataURL('image/png');
+    }
+    const colorName = colorNameInput.value.trim() || 'بدون نام';
+    const variant = { id:'v'+Date.now(), colorName:colorName, dataUrl:dataUrl, pR:pendingPoints[0], pL:pendingPoints[1] };
+
+    let product;
+    if(productSelect.value === '__new__'){
+      const name = newProductName.value.trim() || ('محصول ' + (catalog.length+1));
+      product = { id:'p'+Date.now(), name:name, variants:[] };
+      catalog.push(product);
+    } else {
+      product = catalog.find(function(p){ return p.id === productSelect.value; });
+    }
+    product.variants.push(variant);
+    selectedProductId = product.id; selectedVariantId = variant.id;
+    resetPending(); newProductName.value = '';
+    renderAdminList(); renderCatalogGrid(); refreshProductSelect();
+  });
+
+  document.getElementById('btn-export').addEventListener('click', function(){
+    const html = document.documentElement.outerHTML;
+    const marker = 'const EMBEDDED_CATALOG = [];';
+    const idx = html.indexOf(marker);
+    if(idx === -1){ alert('خطا در ساخت فایل — لطفاً دوباره تلاش کنید.'); return; }
+    const newHtml = '<!DOCTYPE html>\n' + html.slice(0, idx) + 'const EMBEDDED_CATALOG = ' + JSON.stringify(catalog) + ';' + html.slice(idx + marker.length);
+    const blob = new Blob([newHtml], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'ainak-try-on.html';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // ---------------- CAMERA ----------------
+  let stream = null, facingMode = 'user', manualMode = false, trackerTask = null;
+  let eyeL = null, eyeR = null, targetL = null, targetR = null, faceSeenAt = 0;
+
+  async function startCamera(){
+    btnStart.disabled = true;
+    statusDot.className = '';
+    statusText.textContent = 'در حال درخواست دسترسی به دوربین...';
+    try{
+      if(!window.isSecureContext) throw new Error('INSECURE_CONTEXT');
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('NOT_SUPPORTED');
+      if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); }
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode }, audio:false });
+      video.srcObject = stream;
+      await video.play();
+      placeholder.style.display = 'none';
+      resizeCanvas();
+      statusDot.className = 'live';
+      statusText.textContent = 'دوربین فعال — در حال جست‌وجوی چهره...';
+      btnSwitch.disabled = false; btnManual.disabled = false; btnSnap.disabled = false;
+      btnStart.textContent = 'راه‌اندازی مجدد دوربین';
+      startTracking();
+      loop();
+    }catch(err){
+      statusDot.className = 'err';
+      let msg = 'دسترسی به دوربین امکان‌پذیر نشد.';
+      const name = err && (err.name || err.message);
+      if(name === 'NotAllowedError' || name === 'PermissionDeniedError') msg = 'دسترسی به دوربین رد شد — از تنظیمات مرورگر اجازه دهید و صفحه را رفرش کنید.';
+      else if(name === 'NotFoundError' || name === 'DevicesNotFoundError') msg = 'هیچ دوربینی پیدا نشد.';
+      else if(name === 'NotReadableError' || name === 'TrackStartError') msg = 'دوربین در حال استفاده توسط برنامه دیگری است.';
+      else if(name === 'INSECURE_CONTEXT') msg = 'این صفحه روی HTTPS یا localhost نیست.';
+      else if(name === 'NOT_SUPPORTED') msg = 'این مرورگر از دسترسی به دوربین پشتیبانی نمی‌کند.';
+      statusText.textContent = msg;
+      console.error('Camera error:', err);
+    }finally{ btnStart.disabled = false; }
+  }
+  function resizeCanvas(){ overlay.width = video.videoWidth || video.clientWidth; overlay.height = video.videoHeight || video.clientHeight; }
+  video.addEventListener('loadedmetadata', resizeCanvas);
+  btnStart.addEventListener('click', startCamera);
+  btnSwitch.addEventListener('click', function(){ facingMode = facingMode==='user' ? 'environment':'user'; startCamera(); });
+
+  btnManual.addEventListener('click', function(){
+    manualMode = !manualMode;
+    btnManual.classList.toggle('active', manualMode);
+    if(manualMode){
+      statusDot.className = ''; statusText.textContent = 'حالت دستی: نقاط را روی چشمان خود بکشید';
+      if(!eyeL){ eyeL = {x: overlay.width*0.42, y: overlay.height*0.45}; eyeR = {x: overlay.width*0.58, y: overlay.height*0.45}; }
+    } else { statusDot.className='live'; statusText.textContent='دوربین فعال — در حال جست‌وجوی چهره...'; }
+  });
+
+  let dragging = null;
+  overlay.addEventListener('pointerdown', function(e){
+    if(!manualMode) return;
+    const r = overlay.getBoundingClientRect();
+    const mx = overlay.width - (e.clientX-r.left)*(overlay.width/r.width);
+    const my = (e.clientY-r.top)*(overlay.height/r.height);
+    dragging = Math.hypot(mx-eyeL.x,my-eyeL.y) < Math.hypot(mx-eyeR.x,my-eyeR.y) ? 'L':'R';
+  });
+  overlay.addEventListener('pointermove', function(e){
+    if(!manualMode || !dragging) return;
+    const r = overlay.getBoundingClientRect();
+    const mx = overlay.width - (e.clientX-r.left)*(overlay.width/r.width);
+    const my = (e.clientY-r.top)*(overlay.height/r.height);
+    if(dragging==='L'){ eyeL.x=mx; eyeL.y=my; } else { eyeR.x=mx; eyeR.y=my; }
+  });
+  window.addEventListener('pointerup', function(){ dragging = null; });
+
+  // ---------------- face + eye tracking (self-contained, no external model downloads) ----------------
+  const detCanvas = document.createElement('canvas');
+  const detCtx = detCanvas.getContext('2d', { willReadFrequently:true });
+  const eyeCanvas = document.createElement('canvas');
+  const eyeCtx = eyeCanvas.getContext('2d', { willReadFrequently:true });
+  let detBusy = false;
+
+  function startTracking(){
+    if(typeof tracking === 'undefined' || !tracking.ViolaJones || !tracking.ViolaJones.classifiers.face){
+      statusDot.className='err'; statusText.textContent='کتابخانه تشخیص چهره بارگذاری نشد — از «تنظیم دستی» استفاده کنید';
+      return;
+    }
+    if(trackerTask){ clearInterval(trackerTask); }
+    trackerTask = setInterval(detectFaceOnce, 160);
+  }
+
+  function detectEyesInFace(bx, by, bw, bh){
+    // search the upper ~58% of the detected face box for two individual eyes,
+    // which lets us recover real head-tilt (roll) instead of a flat estimate
+    try{
+      const cropW = 130;
+      const cropH = Math.max(1, Math.round(cropW * (bh*0.58) / bw));
+      eyeCanvas.width = cropW; eyeCanvas.height = cropH;
+      eyeCtx.drawImage(video, bx, by, bw, bh*0.58, 0, 0, cropW, cropH);
+      const id = eyeCtx.getImageData(0,0,cropW,cropH);
+      const rects = tracking.ViolaJones.detect(id.data, cropW, cropH, 1.4, 1.15, 1.4, 0.1, tracking.ViolaJones.classifiers.eye);
+      if(!rects || rects.length < 2) return null;
+      const sorted = rects.slice().sort(function(a,b){ return a.x - b.x; });
+      const eR = sorted[0], eL = sorted[sorted.length-1];
+      // reject if the two picks are implausibly close together (likely the same eye twice)
+      if(Math.abs(eL.x - eR.x) < cropW*0.15) return null;
+      const sx = bw/cropW, sy = (bh*0.58)/cropH;
+      return {
+        R: {x: bx + (eR.x+eR.width/2)*sx, y: by + (eR.y+eR.height/2)*sy},
+        L: {x: bx + (eL.x+eL.width/2)*sx, y: by + (eL.y+eL.height/2)*sy}
+      };
+    }catch(e){ return null; }
+  }
+
+  function detectFaceOnce(){
+    if(detBusy) return;
+    if(!video.videoWidth) return;
+    detBusy = true;
+    try{
+      const detW = 200;
+      const detH = Math.max(1, Math.round(detW * (video.videoHeight / video.videoWidth)));
+      detCanvas.width = detW; detCanvas.height = detH;
+      detCtx.drawImage(video, 0, 0, detW, detH);
+      const imgData = detCtx.getImageData(0, 0, detW, detH);
+      const rects = tracking.ViolaJones.detect(imgData.data, detW, detH, 2.0, 1.25, 1.7, 0.1, tracking.ViolaJones.classifiers.face);
+      if(!rects || rects.length === 0){ targetL = null; targetR = null; detBusy = false; return; }
+      let best = rects[0];
+      rects.forEach(function(r){ if(r.width*r.height > best.width*best.height) best = r; });
+      const sx = overlay.width / detW, sy = overlay.height / detH;
+      const bx = best.x*sx, by = best.y*sy, bw = best.width*sx, bh = best.height*sy;
+      faceSeenAt = Date.now();
+
+      const eyes = detectEyesInFace(bx, by, bw, bh);
+      let newR, newL;
+      if(eyes){ newR = eyes.R; newL = eyes.L; }
+      else {
+        newR = {x: bx + bw*0.30, y: by + bh*0.42};
+        newL = {x: bx + bw*0.70, y: by + bh*0.42};
+      }
+      // reject single-frame outliers: a real head move of this size in 160ms
+      // is unlikely, so a bigger jump is almost always detector noise
+      const maxJump = bw*0.4;
+      const jumpR = targetR ? Math.hypot(newR.x-targetR.x, newR.y-targetR.y) : 0;
+      const jumpL = targetL ? Math.hypot(newL.x-targetL.x, newL.y-targetL.y) : 0;
+      if(!targetR || jumpR < maxJump){ targetR = newR; }
+      if(!targetL || jumpL < maxJump){ targetL = newL; }
+    }catch(e){ /* ignore transient frame errors */ }
+    detBusy = false;
+  }
+
+  function loop(){
+    ctx.clearRect(0,0,overlay.width, overlay.height);
+    if(!manualMode){
+      const stale = Date.now() - faceSeenAt > 900;
+      if(targetL && targetR && !stale){
+        eyeL = eyeL ? {x: eyeL.x+(targetL.x-eyeL.x)*0.22, y: eyeL.y+(targetL.y-eyeL.y)*0.22} : {x:targetL.x,y:targetL.y};
+        eyeR = eyeR ? {x: eyeR.x+(targetR.x-eyeR.x)*0.22, y: eyeR.y+(targetR.y-eyeR.y)*0.22} : {x:targetR.x,y:targetR.y};
+        statusDot.className='live'; statusText.textContent = 'دوربین فعال — تشخیص خودکار';
+      } else if(stale){
+        eyeL = null; eyeR = null; smoothedDist = null; smoothedTheta = null;
+        statusText.textContent = 'چهره پیدا نشد — کمی نزدیک‌تر یا در نور بهتر بایستید';
+      }
+    }
+    const variant = currentVariant();
+    if(variant && eyeL && eyeR){ drawGlassesPhoto(variant); }
+    if(manualMode && eyeL && eyeR){
+      [eyeL,eyeR].forEach(function(p){ ctx.beginPath(); ctx.arc(p.x,p.y,7,0,Math.PI*2); ctx.strokeStyle='#D8B978'; ctx.lineWidth=2; ctx.stroke(); });
+    }
+    requestAnimationFrame(loop);
+  }
+
+  let smoothedDist = null, smoothedTheta = null;
+  function drawGlassesPhoto(variant){
+    const im = loadedImgs[variant.id];
+    if(!im){ getImg(variant); return; }
+    const P0 = variant.pR, P1 = variant.pL;
+    const L0 = eyeR, L1 = eyeL;
+    const dxP = P1.x-P0.x, dyP = P1.y-P0.y;
+    const dxL = L1.x-L0.x, dyL = L1.y-L0.y;
+    const distP = Math.hypot(dxP,dyP);
+    const rawDist = Math.hypot(dxL,dyL);
+    const rawTheta = Math.atan2(dyL,dxL) - Math.atan2(dyP,dxP);
+    if(distP < 1) return;
+    smoothedDist = (smoothedDist===null) ? rawDist : smoothedDist + (rawDist-smoothedDist)*0.25;
+    smoothedTheta = (smoothedTheta===null) ? rawTheta : smoothedTheta + (rawTheta-smoothedTheta)*0.25;
+    const s = (smoothedDist/distP) * sizeScale;
+    const theta = smoothedTheta;
+    const cosT = Math.cos(theta)*s, sinT = Math.sin(theta)*s;
+    // anchor the transform on the eye midpoint so the size slider scales
+    // the glasses around the face rather than dragging them sideways
+    const midL = {x:(L0.x+L1.x)/2, y:(L0.y+L1.y)/2};
+    const midP = {x:(P0.x+P1.x)/2, y:(P0.y+P1.y)/2};
+    const e = midL.x - (midP.x*cosT - midP.y*sinT);
+    const f = midL.y - (midP.x*sinT + midP.y*cosT);
+    ctx.save();
+    ctx.setTransform(cosT, sinT, -sinT, cosT, e, f);
+    ctx.drawImage(im, 0, 0);
+    ctx.restore();
+  }
+
+  preloadAll();
+
+  btnSnap.addEventListener('click', function(){
+    const out = document.createElement('canvas'); out.width = overlay.width; out.height = overlay.height;
+    const octx = out.getContext('2d');
+    octx.translate(out.width,0); octx.scale(-1,1);
+    octx.drawImage(video, 0, 0, out.width, out.height);
+    octx.setTransform(1,0,0,1,0,0);
+    octx.drawImage(overlay, 0, 0);
+    const url = out.toDataURL('image/png');
+    const emptyMsg = snapStrip.querySelector('.empty-snaps');
+    if(emptyMsg) emptyMsg.remove();
+    const link = document.createElement('a'); link.href = url; link.download = 'try-on-' + Date.now() + '.png';
+    const img = document.createElement('img'); img.src = url; img.title = 'برای دانلود کلیک کنید';
+    img.addEventListener('click', function(){ link.click(); });
+    snapStrip.prepend(img);
+  });
+
+})();
+</script>
+</body>
+</html>
