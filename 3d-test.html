@@ -45,12 +45,12 @@
     </div>
     <div class="controls">
       <button class="btn-primary" id="btn-start">فعال‌سازی دوربین</button>
-      <button class="btn-ghost" id="btn-flip">چرخش تست ۹۰°</button>
+      <button class="btn-ghost" id="btn-flip">آینه جلو/پشت</button>
     </div>
     <div class="row"><span>اندازه</span><input type="range" id="size-slider" min="40" max="200" value="100"></div>
-    <div class="row"><span>عمق/زاویه چرخش (Debug)</span><input type="range" id="axis-slider" min="0" max="3" value="0" step="1"></div>
+    <div class="row"><span>زاویه بالا/پایین (Debug) — <span id="axis-readout">۰°</span></span><input type="range" id="axis-slider" min="0" max="3" value="0" step="1"></div>
   </div>
-  <div class="tip">اگر عینک وارونه یا از پهلو دیده شد، دکمه «چرخش تست» یا اسلایدر Debug را امتحان کنید تا جهت درست پیدا شود — این تنظیم را برایم بگویید تا در نسخه‌ی اصلی ثابتش کنم.</div>
+  <div class="tip">اسلایدر «زاویه بالا/پایین» را بکشید (۴ حالت: ۰، ۹۰، ۱۸۰، ۲۷۰ درجه) تا عینک را از روبه‌رو ببینید، نه از بالا. اگر جلو/پشت آن برعکس بود، دکمه‌ی «آینه جلو/پشت» را هم بزنید. هر ترکیبی که درست شد، همان عدد را برایم بگویید (مثلاً «۹۰ درجه + آینه فعال») تا در نسخه‌ی اصلی ثابتش کنم.</div>
 </div>
 
 <script>
@@ -66,8 +66,15 @@ const GLB_BASE64 = "Z2xURgIAAAC0LwAAMCEAAEpTT057InNjZW5lIjowLCJzY2VuZXMiOlt7Im5v
   const sizeSlider = document.getElementById('size-slider');
   const axisSlider = document.getElementById('axis-slider');
 
+  const axisReadout = document.getElementById('axis-readout');
   let sizeScale = 1.0;
   let flipStep = 0;
+  let axisStep = 0;
+  const axisLabels = ['۰°','۹۰°','۱۸۰°','۲۷۰°'];
+  axisSlider.addEventListener('input', function(){
+    axisStep = parseInt(axisSlider.value,10);
+    axisReadout.textContent = axisLabels[axisStep];
+  });
 
   // ---------- minimal GLB parser (no external loader needed) ----------
   function base64ToArrayBuffer(b64){
@@ -179,7 +186,7 @@ const GLB_BASE64 = "Z2xURgIAAAC0LwAAMCEAAEpTT057InNjZW5lIjowLCJzY2VuZXMiOlt7Im5v
   function overlay_h(){ return video.videoHeight || video.clientHeight; }
   video.addEventListener('loadedmetadata', resizeThree);
 
-  btnFlip.addEventListener('click', function(){ flipStep = (flipStep+1)%4; });
+  btnFlip.addEventListener('click', function(){ flipStep = (flipStep+1)%2; });
   sizeSlider.addEventListener('input', function(){ sizeScale = sizeSlider.value/100; });
 
   // ---------- camera ----------
@@ -274,11 +281,9 @@ const GLB_BASE64 = "Z2xURgIAAAC0LwAAMCEAAEpTT057InNjZW5lIjowLCJzY2VuZXMiOlt7Im5v
         const scale = (smoothedDist/modelEyeDist) * sizeScale;
         const cx=(eyeL.x+eyeR.x)/2, cy=(eyeL.y+eyeR.y)/2;
         glassesGroup.position.set(cx, cy, 0);
-        glassesGroup.rotation.set(0,0,0);
-        glassesGroup.rotation.z = smoothedTheta;
-        if(flipStep===1) glassesGroup.rotation.x = Math.PI;
-        if(flipStep===2) glassesGroup.rotation.y = Math.PI;
-        if(flipStep===3){ glassesGroup.rotation.x = Math.PI; glassesGroup.rotation.y = Math.PI; }
+        glassesGroup.rotation.set(axisStep*(Math.PI/2), 0, 0);
+        if(flipStep===1) glassesGroup.rotation.z += Math.PI;
+        glassesGroup.rotateOnWorldAxis(new THREE.Vector3(0,0,1), smoothedTheta);
         glassesGroup.scale.setScalar(scale);
         glassesGroup.visible = true;
       } else { glassesGroup.visible = false; }
