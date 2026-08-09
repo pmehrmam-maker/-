@@ -49,6 +49,7 @@
     </div>
     <div class="row"><span>اندازه</span><input type="range" id="size-slider" min="40" max="200" value="100"></div>
     <div class="row"><span>زاویه بالا/پایین (Debug) — <span id="axis-readout">۰°</span></span><input type="range" id="axis-slider" min="0" max="3" value="0" step="1"></div>
+    <div class="row"><span id="debug-readout">دو-چشمی: — | زاویه کج‌شدن: —</span></div>
   </div>
   <div class="tip">اسلایدر «زاویه بالا/پایین» را بکشید (۴ حالت: ۰، ۹۰، ۱۸۰، ۲۷۰ درجه) تا عینک را از روبه‌رو ببینید، نه از بالا. اگر جلو/پشت آن برعکس بود، دکمه‌ی «آینه جلو/پشت» را هم بزنید. هر ترکیبی که درست شد، همان عدد را برایم بگویید (مثلاً «۹۰ درجه + آینه فعال») تا در نسخه‌ی اصلی ثابتش کنم.</div>
 </div>
@@ -68,7 +69,7 @@ const GLB_BASE64 = "Z2xURgIAAAC0LwAAMCEAAEpTT057InNjZW5lIjowLCJzY2VuZXMiOlt7Im5v
 
   const axisReadout = document.getElementById('axis-readout');
   let sizeScale = 1.0;
-  let flipStep = 0;
+  let flipStep = 1;
   let axisStep = 0;
   const axisLabels = ['۰°','۹۰°','۱۸۰°','۲۷۰°'];
   axisSlider.addEventListener('input', function(){
@@ -207,7 +208,7 @@ const GLB_BASE64 = "Z2xURgIAAAC0LwAAMCEAAEpTT057InNjZW5lIjowLCJzY2VuZXMiOlt7Im5v
   btnStart.addEventListener('click', startCamera);
 
   // ---------- face+eye tracking (same approach as main app) ----------
-  let eyeL=null, eyeR=null, targetL=null, targetR=null, faceSeenAt=0, trackerTask=null, detBusy=false;
+  let eyeL=null, eyeR=null, targetL=null, targetR=null, faceSeenAt=0, trackerTask=null, detBusy=false, lastEyeSplitOk=false;
   const detCanvas=document.createElement('canvas'), detCtx=detCanvas.getContext('2d',{willReadFrequently:true});
   const eyeCanvas=document.createElement('canvas'), eyeCtx=eyeCanvas.getContext('2d',{willReadFrequently:true});
 
@@ -245,7 +246,8 @@ const GLB_BASE64 = "Z2xURgIAAAC0LwAAMCEAAEpTT057InNjZW5lIjowLCJzY2VuZXMiOlt7Im5v
       const sx=overlay_w()/detW, sy=overlay_h()/detH;
       const bx=best.x*sx, by=best.y*sy, bw=best.width*sx, bh=best.height*sy;
       faceSeenAt=Date.now();
-      const eyes=detectEyesInFace(bx,by,bw,bh);
+      const eyes = detectEyesInFace(bx, by, bw, bh);
+      lastEyeSplitOk = !!eyes;
       let newR,newL;
       if(eyes){ newR=eyes.R; newL=eyes.L; }
       else { newR={x:bx+bw*0.30,y:by+bh*0.42}; newL={x:bx+bw*0.70,y:by+bh*0.42}; }
@@ -286,6 +288,11 @@ const GLB_BASE64 = "Z2xURgIAAAC0LwAAMCEAAEpTT057InNjZW5lIjowLCJzY2VuZXMiOlt7Im5v
         glassesGroup.rotateOnWorldAxis(new THREE.Vector3(0,0,1), smoothedTheta);
         glassesGroup.scale.setScalar(scale);
         glassesGroup.visible = true;
+        const debugEl = document.getElementById('debug-readout');
+        if(debugEl){
+          const deg = Math.round(smoothedTheta*180/Math.PI);
+          debugEl.textContent = 'دو-چشمی: ' + (lastEyeSplitOk? 'بله':'خیر (تخمین تخت)') + ' | زاویه کج‌شدن: ' + deg + '°';
+        }
       } else { glassesGroup.visible = false; }
     }
     if(renderer && camera) renderer.render(scene, camera);
