@@ -24,7 +24,7 @@
   .video-box{position:relative; width:100%; aspect-ratio:4/3; background:#0b0d12;}
   .lock-guide{position:absolute; inset:0; display:none; align-items:flex-end; justify-content:center; pointer-events:none; z-index:6;}
   .lock-guide.active{display:flex;}
-  .lock-oval{position:absolute; top:8%; left:50%; transform:translateX(-50%); width:58%; height:78%; border:3px solid var(--brass-light); border-radius:50%; box-shadow:0 0 0 2000px rgba(0,0,0,.35);}
+  .lock-oval-svg{position:absolute; top:6%; left:50%; transform:translateX(-50%); width:60%; height:80%;}
   .lock-msg{position:relative; margin-bottom:10px; background:rgba(18,21,28,.85); border:1px solid var(--line); border-radius:10px; padding:8px 14px; font-size:12.5px; color:var(--paper);}
   video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1);}
   canvas{position:absolute; inset:0; width:100%; height:100%; transform:scaleX(-1);}
@@ -47,7 +47,9 @@
       <video id="video" playsinline muted></video>
       <canvas id="gl-overlay"></canvas>
       <div class="lock-guide" id="lock-guide">
-        <div class="lock-oval"></div>
+        <svg class="lock-oval-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <ellipse cx="50" cy="50" rx="47" ry="47" fill="none" stroke="#D8B978" stroke-width="2.2" vector-effect="non-scaling-stroke"/>
+        </svg>
         <div class="lock-msg" id="lock-msg">چهره را داخل بیضی و رو‌به‌رو نگه دارید...</div>
       </div>
     </div>
@@ -234,16 +236,16 @@ const GLB_BASE64 = "Z2xURgIAAAC0LwAAMCEAAEpTT057InNjZW5lIjowLCJzY2VuZXMiOlt7Im5v
   }
   function detectEyesInFace(bx,by,bw,bh){
     try{
-      const cropW=130, cropH=Math.max(1,Math.round(cropW*(bh*0.58)/bw));
+      const cropW=220, cropH=Math.max(1,Math.round(cropW*(bh*0.62)/bw));
       eyeCanvas.width=cropW; eyeCanvas.height=cropH;
-      eyeCtx.drawImage(video, bx,by,bw,bh*0.58, 0,0,cropW,cropH);
+      eyeCtx.drawImage(video, bx,by,bw,bh*0.62, 0,0,cropW,cropH);
       const id=eyeCtx.getImageData(0,0,cropW,cropH);
-      const rects=tracking.ViolaJones.detect(id.data,cropW,cropH,1.4,1.15,1.4,0.1,tracking.ViolaJones.classifiers.eye);
+      const rects=tracking.ViolaJones.detect(id.data,cropW,cropH,1.1,1.1,1.1,0.06,tracking.ViolaJones.classifiers.eye);
       if(!rects||rects.length<2) return null;
       const sorted=rects.slice().sort(function(a,b){return a.x-b.x;});
       const eR=sorted[0], eL=sorted[sorted.length-1];
-      if(Math.abs(eL.x-eR.x) < cropW*0.15) return null;
-      const sx=bw/cropW, sy=(bh*0.58)/cropH;
+      if(Math.abs(eL.x-eR.x) < cropW*0.12) return null;
+      const sx=bw/cropW, sy=(bh*0.62)/cropH;
       return { R:{x:bx+(eR.x+eR.width/2)*sx, y:by+(eR.y+eR.height/2)*sy}, L:{x:bx+(eL.x+eL.width/2)*sx, y:by+(eL.y+eL.height/2)*sy} };
     }catch(e){ return null; }
   }
