@@ -63,6 +63,11 @@
   <div class="tip">اگر عینک از بالا دیده شد، اسلایدر «زاویه بالا/پایین» را بکشید. اگر جلو/پشتش برعکس بود، دکمه‌ی «آینه جلو/پشت» را بزنید.</div>
 </div>
 
+<script type="module">
+  import { FilesetResolver, FaceLandmarker } from './vision_bundle.mjs';
+  window.__MP_FilesetResolver = FilesetResolver;
+  window.__MP_FaceLandmarker = FaceLandmarker;
+</script>
 <script>
 (async function(){
   const video = document.getElementById('video');
@@ -202,15 +207,21 @@
 
   // ---------- MediaPipe FaceLandmarker (self-hosted, same-origin) ----------
   let faceLandmarker = null, mpReady = false;
-  let FilesetResolver, FaceLandmarker;
+  function waitForGlobal(name, timeoutMs){
+    return new Promise(function(resolve, reject){
+      const start = Date.now();
+      (function check(){
+        if(window[name]){ resolve(window[name]); return; }
+        if(Date.now()-start > timeoutMs){ reject(new Error('بارگذاری ماژول موفق نبود (شاید مرورگر قدیمی است یا فایل vision_bundle.mjs درست آپلود نشده)')); return; }
+        setTimeout(check, 100);
+      })();
+    });
+  }
   async function initMediaPipe(){
     debugReadout.textContent = 'MediaPipe: در حال بارگذاری موتور...';
     try{
-      if(!FilesetResolver || !FaceLandmarker){
-        const mod = await import('./vision_bundle.mjs');
-        FilesetResolver = mod.FilesetResolver;
-        FaceLandmarker = mod.FaceLandmarker;
-      }
+      const FilesetResolver = await waitForGlobal('__MP_FilesetResolver', 6000);
+      const FaceLandmarker = await waitForGlobal('__MP_FaceLandmarker', 6000);
       const vision = await FilesetResolver.forVisionTasks(".");
       faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: "./face_landmarker.task", delegate: "CPU" },
