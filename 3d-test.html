@@ -353,7 +353,11 @@
   }
 
   function runLoopBody(){
-    if(video.readyState >= 2){ runDetection(); }
+    let detected = false;
+    if(video.readyState >= 2){ detected = runDetection(); }
+    if(lockState !== 'locking'){
+      debugReadout.textContent = 'تشخیص این فریم: ' + (detected ? 'موفق' : 'ناموفق') + (lastDetectError ? (' | خطا: ' + lastDetectError) : '');
+    }
 
     if(lockState === 'locking'){
       const elapsed = Date.now()-lockStartTime;
