@@ -294,14 +294,14 @@
 
     if(lockState === 'locking'){
       const elapsed = Date.now()-lockStartTime;
-      const totalMs = 3200;
-      if(elapsed > totalMs && lockOkCount >= 5){
+      const minMs = 3200, maxMs = 8000;
+      if((elapsed > minMs && lockOkCount >= 3) || elapsed > maxMs){
         lockState = 'tracking';
         lockGuide.classList.remove('active');
         smoothedDist = null; smoothedTheta = null;
       } else {
-        const secLeft = Math.max(0, Math.ceil((totalMs-elapsed)/1000));
-        lockMsg.textContent = 'در حال قفل کردن... ' + secLeft + ' ثانیه';
+        const secLeft = Math.max(0, Math.ceil((minMs-elapsed)/1000));
+        lockMsg.textContent = 'در حال قفل کردن... ' + secLeft + ' ثانیه (چهره یافت‌شده: ' + lockOkCount + ' بار)';
       }
     }
 
