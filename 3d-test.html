@@ -64,7 +64,7 @@
 </div>
 
 <script type="module">
-  import { FilesetResolver, FaceLandmarker } from './vision_bundle.mjs';
+  import { FilesetResolver, FaceLandmarker } from './vision_bundle.js';
   window.__MP_FilesetResolver = FilesetResolver;
   window.__MP_FaceLandmarker = FaceLandmarker;
 </script>
@@ -260,7 +260,7 @@
       const start = Date.now();
       (function check(){
         if(window[name]){ resolve(window[name]); return; }
-        if(Date.now()-start > timeoutMs){ reject(new Error('بارگذاری ماژول موفق نبود (شاید مرورگر قدیمی است یا فایل vision_bundle.mjs درست آپلود نشده)')); return; }
+        if(Date.now()-start > timeoutMs){ reject(new Error('بارگذاری ماژول موفق نبود (شاید مرورگر قدیمی است یا فایل vision_bundle.js درست آپلود نشده)')); return; }
         setTimeout(check, 100);
       })();
     });
