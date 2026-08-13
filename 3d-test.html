@@ -63,9 +63,7 @@
   <div class="tip">اگر عینک از بالا دیده شد، اسلایدر «زاویه بالا/پایین» را بکشید. اگر جلو/پشتش برعکس بود، دکمه‌ی «آینه جلو/پشت» را بزنید.</div>
 </div>
 
-<script type="module">
-import { FilesetResolver, FaceLandmarker } from "./vision_bundle.mjs";
-
+<script>
 (async function(){
   const video = document.getElementById('video');
   const glCanvas = document.getElementById('gl-overlay');
@@ -204,9 +202,15 @@ import { FilesetResolver, FaceLandmarker } from "./vision_bundle.mjs";
 
   // ---------- MediaPipe FaceLandmarker (self-hosted, same-origin) ----------
   let faceLandmarker = null, mpReady = false;
+  let FilesetResolver, FaceLandmarker;
   async function initMediaPipe(){
     debugReadout.textContent = 'MediaPipe: در حال بارگذاری موتور...';
     try{
+      if(!FilesetResolver || !FaceLandmarker){
+        const mod = await import('./vision_bundle.mjs');
+        FilesetResolver = mod.FilesetResolver;
+        FaceLandmarker = mod.FaceLandmarker;
+      }
       const vision = await FilesetResolver.forVisionTasks(".");
       faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: "./face_landmarker.task", delegate: "CPU" },
@@ -216,7 +220,7 @@ import { FilesetResolver, FaceLandmarker } from "./vision_bundle.mjs";
       mpReady = true;
       debugReadout.textContent = 'MediaPipe: آماده';
     }catch(e){
-      debugReadout.textContent = 'MediaPipe: خطا در بارگذاری — ' + (e.message || e);
+      debugReadout.textContent = 'MediaPipe: خطا در بارگذاری — ' + (e && e.message ? e.message : e);
       statusDot.className = 'err';
     }
   }
