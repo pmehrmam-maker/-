@@ -254,7 +254,7 @@
   video.addEventListener('loadedmetadata', resizeThree);
 
   // ---------- MediaPipe FaceLandmarker (self-hosted, same-origin) ----------
-  let faceLandmarker = null, mpReady = false;
+  let faceLandmarker = null, mpReady = false, currentDelegate = 'CPU';
   function waitForGlobal(name, timeoutMs){
     return new Promise(function(resolve, reject){
       const start = Date.now();
@@ -265,28 +265,31 @@
       })();
     });
   }
-  async function initMediaPipe(){
-    debugReadout.textContent = 'MediaPipe: در حال بارگذاری موتور...';
+  async function initMediaPipe(delegate){
+    debugReadout.textContent = 'MediaPipe: در حال بارگذاری موتور (' + delegate + ')...';
     try{
       const FilesetResolver = await waitForGlobal('__MP_FilesetResolver', 6000);
       const FaceLandmarker = await waitForGlobal('__MP_FaceLandmarker', 6000);
       const vision = await FilesetResolver.forVisionTasks(".");
+      if(faceLandmarker){ try{ faceLandmarker.close(); }catch(e){} }
       faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: "./face_landmarker.task", delegate: "CPU" },
+        baseOptions: { modelAssetPath: "./face_landmarker.task", delegate: delegate },
         runningMode: "VIDEO",
         numFaces: 1
       });
       mpReady = true;
-      debugReadout.textContent = 'MediaPipe: آماده';
+      currentDelegate = delegate;
+      debugReadout.textContent = 'MediaPipe: آماده (' + delegate + ')';
     }catch(e){
-      debugReadout.textContent = 'MediaPipe: خطا در بارگذاری — ' + (e && e.message ? e.message : e);
+      debugReadout.textContent = 'MediaPipe: خطا در بارگذاری (' + delegate + ') — ' + (e && e.message ? e.message : e);
       statusDot.className = 'err';
+      mpReady = false;
     }
   }
 
   // ---------- camera ----------
   let stream=null;
-  let lockState = 'idle', lockStartTime = 0, lockOkCount = 0;
+  let lockState = 'idle', lockStartTime = 0, lockOkCount = 0, triedGPUFallback = false;
 
   async function startCamera(){
     btnStart.disabled = true; statusText.textContent = 'در حال درخواست دسترسی...';
@@ -296,9 +299,9 @@
       video.srcObject = stream; await video.play();
       resizeThree(); if(!renderer) initThree(); else resizeThree();
       statusDot.className='live'; statusText.textContent='در حال بارگذاری موتور تشخیص...';
-      if(!mpReady) await initMediaPipe();
+      if(!mpReady) await initMediaPipe('CPU');
       statusText.textContent='فعال — در حال قفل کردن اولیه';
-      lockState = 'locking'; lockStartTime = Date.now(); lockOkCount = 0;
+      lockState = 'locking'; lockStartTime = Date.now(); lockOkCount = 0; triedGPUFallback = false;
       lockGuide.classList.add('active');
       loop();
     }catch(e){
@@ -308,7 +311,7 @@
   btnStart.addEventListener('click', startCamera);
 
   // ---------- detection + render loop ----------
-  let eyeL=null, eyeR=null, faceSeenAt=0, lastDetectError=null;
+  let eyeL=null, eyeR=null, faceSeenAt=0, lastDetectError=null, lastMpTimestamp=0;
   let smoothedDist=null, smoothedTheta=null, smoothEyeL=null, smoothEyeR=null;
   let offsetX=0, offsetY=0;
   let lastDetectTime = 0;
@@ -316,7 +319,9 @@
   function runDetection(){
     if(!mpReady || !faceLandmarker) return false;
     try{
-      const now = performance.now();
+      let now = Date.now();
+      if(now <= lastMpTimestamp) now = lastMpTimestamp + 1;
+      lastMpTimestamp = now;
       const result = faceLandmarker.detectForVideo(video, now);
       if(result.faceLandmarks && result.faceLandmarks.length){
         const lm = result.faceLandmarks[0];
@@ -356,19 +361,30 @@
     let detected = false;
     if(video.readyState >= 2){ detected = runDetection(); }
     if(lockState !== 'locking'){
-      debugReadout.textContent = 'تشخیص این فریم: ' + (detected ? 'موفق' : 'ناموفق') + (lastDetectError ? (' | خطا: ' + lastDetectError) : '');
+      debugReadout.textContent = 'تشخیص این فریم: ' + (detected ? 'موفق' : 'ناموفق') + ' | روش: ' + currentDelegate + ' | ابعاد ویدیو: ' + overlay_w() + 'x' + overlay_h() + (lastDetectError ? (' | خطا: ' + lastDetectError) : '');
     }
 
     if(lockState === 'locking'){
       const elapsed = Date.now()-lockStartTime;
       const minMs = 3200, maxMs = 8000;
-      if((elapsed > minMs && lockOkCount >= 3) || elapsed > maxMs){
+      if((elapsed > minMs && lockOkCount >= 3)){
         lockState = 'tracking';
         lockGuide.classList.remove('active');
         smoothedDist = null; smoothedTheta = null;
+      } else if(elapsed > maxMs){
+        if(lockOkCount === 0 && currentDelegate === 'CPU' && !triedGPUFallback){
+          triedGPUFallback = true;
+          lockMsg.textContent = 'روش دیگری (GPU) در حال امتحان است...';
+          initMediaPipe('GPU');
+          lockStartTime = Date.now(); lockOkCount = 0;
+        } else {
+          lockState = 'tracking';
+          lockGuide.classList.remove('active');
+          smoothedDist = null; smoothedTheta = null;
+        }
       } else {
         const secLeft = Math.max(0, Math.ceil((minMs-elapsed)/1000));
-        lockMsg.textContent = 'در حال قفل کردن... ' + secLeft + ' ثانیه (چهره یافت‌شده: ' + lockOkCount + ' بار)' + (lastDetectError ? (' | خطا: ' + lastDetectError) : '');
+        lockMsg.textContent = 'در حال قفل کردن... ' + secLeft + ' ثانیه (چهره یافت‌شده: ' + lockOkCount + ' بار، روش: ' + currentDelegate + ')' + (lastDetectError ? (' | خطا: ' + lastDetectError) : '');
       }
     }
 
