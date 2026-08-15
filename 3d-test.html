@@ -265,6 +265,30 @@
       })();
     });
   }
+  function describeError(e){
+    if(!e) return 'نامشخص';
+    if(e instanceof Event){
+      const t = e.target;
+      let parts = ['نوع رویداد: ' + e.type];
+      if(t){
+        if(t.src) parts.push('آدرس: ' + t.src);
+        if(t.currentSrc) parts.push('آدرس: ' + t.currentSrc);
+        if(t.status !== undefined) parts.push('کد HTTP: ' + t.status);
+        if(t.responseURL) parts.push('آدرس: ' + t.responseURL);
+        if(t.tagName) parts.push('نوع عنصر: ' + t.tagName);
+      }
+      return parts.join(' | ');
+    }
+    if(e.message) return e.message;
+    try{ return JSON.stringify(e); }catch(err){ return String(e); }
+  }
+  window.addEventListener('error', function(ev){
+    debugReadout.textContent = 'خطای کلی صفحه: ' + describeError(ev) + (ev.filename ? (' | فایل: ' + ev.filename) : '');
+  });
+  window.addEventListener('unhandledrejection', function(ev){
+    debugReadout.textContent = 'خطای پردازش‌نشده: ' + describeError(ev.reason);
+  });
+
   async function initMediaPipe(delegate){
     debugReadout.textContent = 'MediaPipe: در حال بارگذاری موتور (' + delegate + ')...';
     try{
@@ -275,13 +299,16 @@
       faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: "./face_landmarker.task", delegate: delegate },
         runningMode: "VIDEO",
-        numFaces: 1
+        numFaces: 1,
+        minFaceDetectionConfidence: 0.2,
+        minFacePresenceConfidence: 0.2,
+        minTrackingConfidence: 0.2
       });
       mpReady = true;
       currentDelegate = delegate;
       debugReadout.textContent = 'MediaPipe: آماده (' + delegate + ')';
     }catch(e){
-      debugReadout.textContent = 'MediaPipe: خطا در بارگذاری (' + delegate + ') — ' + (e && e.message ? e.message : e);
+      debugReadout.textContent = 'MediaPipe: خطا در بارگذاری (' + delegate + ') — ' + describeError(e);
       statusDot.className = 'err';
       mpReady = false;
     }
@@ -311,7 +338,7 @@
   btnStart.addEventListener('click', startCamera);
 
   // ---------- detection + render loop ----------
-  let eyeL=null, eyeR=null, faceSeenAt=0, lastDetectError=null, lastMpTimestamp=0;
+  let eyeL=null, eyeR=null, faceSeenAt=0, lastDetectError=null, lastMpTimestamp=0, rawResultLogged=false, lastRawResultKeys='';
   let smoothedDist=null, smoothedTheta=null, smoothEyeL=null, smoothEyeR=null;
   let offsetX=0, offsetY=0;
   let lastDetectTime = 0;
@@ -323,6 +350,13 @@
       if(now <= lastMpTimestamp) now = lastMpTimestamp + 1;
       lastMpTimestamp = now;
       const result = faceLandmarker.detectForVideo(video, now);
+      if(!rawResultLogged){
+        rawResultLogged = true;
+        try{
+          lastRawResultKeys = 'کلیدهای پاسخ: ' + Object.keys(result).join(',') +
+            ' | faceLandmarks: ' + (result.faceLandmarks ? result.faceLandmarks.length : 'نامعلوم');
+        }catch(e){}
+      }
       if(result.faceLandmarks && result.faceLandmarks.length){
         const lm = result.faceLandmarks[0];
         // eye OUTER CORNERS (33 = right eye outer, 263 = left eye outer) — these move
@@ -342,7 +376,7 @@
       }
       return false;
     }catch(e){
-      lastDetectError = (e && e.message) ? e.message : String(e);
+      lastDetectError = describeError(e);
       return false;
     }
   }
@@ -351,7 +385,7 @@
     try{
       runLoopBody();
     }catch(e){
-      debugReadout.textContent = 'خطای اجرا: ' + (e && e.message ? e.message : e);
+      debugReadout.textContent = 'خطای اجرا: ' + describeError(e);
       statusDot.className = 'err';
     }
     requestAnimationFrame(loop);
@@ -361,7 +395,7 @@
     let detected = false;
     if(video.readyState >= 2){ detected = runDetection(); }
     if(lockState !== 'locking'){
-      debugReadout.textContent = 'تشخیص این فریم: ' + (detected ? 'موفق' : 'ناموفق') + ' | روش: ' + currentDelegate + ' | ابعاد ویدیو: ' + overlay_w() + 'x' + overlay_h() + (lastDetectError ? (' | خطا: ' + lastDetectError) : '');
+      debugReadout.textContent = 'تشخیص این فریم: ' + (detected ? 'موفق' : 'ناموفق') + ' | روش: ' + currentDelegate + ' | ابعاد ویدیو: ' + overlay_w() + 'x' + overlay_h() + (lastDetectError ? (' | خطا: ' + lastDetectError) : '') + (lastRawResultKeys ? (' | ' + lastRawResultKeys) : '');
     }
 
     if(lockState === 'locking'){
