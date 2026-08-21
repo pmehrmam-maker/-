@@ -356,7 +356,7 @@
   let smoothedDist=null, smoothedTheta=null, smoothEyeL=null, smoothEyeR=null, smoothedFaceWidth=null, smoothedBridgeX=null, smoothedBridgeY=null;
   let poseMatrix=null, poseNeutralQuat=null, poseQuat=null, poseReady=false;
   let smoothYaw=0, smoothPitch=0, smoothRoll=0;
-  let smoothCenterX=0, smoothCenterY=0;
+  let smoothNoseX=null, smoothNoseY=null;
   let offsetX=0, offsetY=0;
   let calibrationEyeDist=null;
   let lastDetectTime = 0;
@@ -585,7 +585,7 @@
     // just keep showing the glasses at their last known position instead
     // of flickering them away.
     const stale = Date.now()-faceSeenAt > 1600;
-    if(stale){ eyeL=null; eyeR=null; smoothedDist=null; smoothedTheta=null; smoothEyeL=null; smoothEyeR=null; smoothedFaceWidth=null; smoothedBridgeX=null; smoothedBridgeY=null; poseReady=false; poseNeutralQuat=null; }
+    if(stale){ eyeL=null; eyeR=null; smoothedDist=null; smoothedTheta=null; smoothEyeL=null; smoothEyeR=null; smoothedFaceWidth=null; smoothedBridgeX=null; smoothedBridgeY=null; poseReady=false; poseNeutralQuat=null; smoothNoseX=null; smoothNoseY=null; }
 
     if(glassesGroup){
       if(eyeL && eyeR && lockState === 'tracking'){
@@ -639,23 +639,26 @@
         // user's calibration remains proportional when the face moves.
         const eyeMidX=(smoothEyeL.x+smoothEyeR.x)/2;
         const eyeMidY=(smoothEyeL.y+smoothEyeR.y)/2;
+
+        // V3: responsive bridge/nose anchor. Uses landmarks already captured
+        // by runDetection; camera and MediaPipe initialization are unchanged.
+        const noseLm = window.__lastFaceLandmarks ? window.__lastFaceLandmarks[168] : null;
+        const rawNoseX = noseLm ? noseLm.x*w : eyeMidX;
+        const rawNoseY = noseLm ? noseLm.y*h : eyeMidY;
+        if(smoothNoseX===null){
+          smoothNoseX=rawNoseX; smoothNoseY=rawNoseY;
+        }else{
+          const nd=Math.hypot(rawNoseX-smoothNoseX, rawNoseY-smoothNoseY);
+          const na=Math.min(0.97, 0.72 + Math.min(0.25, nd*18));
+          smoothNoseX += (rawNoseX-smoothNoseX)*na;
+          smoothNoseY += (rawNoseY-smoothNoseY)*na;
+        }
+        const noseBlend=0.45;
+        const anchorX=eyeMidX*(1-noseBlend)+smoothNoseX*noseBlend;
+        const anchorY=eyeMidY*(1-noseBlend)+smoothNoseY*noseBlend;
         const offsetScale=calibrationEyeDist ? (smoothedDist/calibrationEyeDist) : 1;
-
-        // V3: use the nose bridge as the primary positional anchor.
-        const noseLm=lm[1];
-        const noseX=noseLm ? noseLm.x : eyeMidX;
-        const noseY=noseLm ? noseLm.y : eyeMidY;
-        const bridgeX=eyeMidX+(noseX-eyeMidX)*0.88;
-        const bridgeY=eyeMidY+(noseY-eyeMidY)*0.88;
-
-        const posDx=bridgeX-smoothCenterX;
-        const posDy=bridgeY-smoothCenterY;
-        const posAlpha=adaptiveAlpha(Math.hypot(posDx,posDy),0.72,0.96,14);
-        smoothCenterX += posDx*posAlpha;
-        smoothCenterY += posDy*posAlpha;
-
-        const cx=smoothCenterX+offsetX*offsetScale;
-        const cy=smoothCenterY+offsetY*offsetScale;
+        const cx=anchorX+offsetX*offsetScale;
+        const cy=anchorY+offsetY*offsetScale;
         glassesGroup.position.set(cx, cy, 0);
         // Keep the existing manual orientation controls, then apply the
         // relative 3D head rotation from MediaPipe.
