@@ -356,7 +356,6 @@
   let smoothedDist=null, smoothedTheta=null, smoothEyeL=null, smoothEyeR=null, smoothedFaceWidth=null, smoothedBridgeX=null, smoothedBridgeY=null;
   let poseMatrix=null, poseNeutralQuat=null, poseQuat=null, poseReady=false;
   let smoothYaw=0, smoothPitch=0, smoothRoll=0;
-  let smoothNoseX=null, smoothNoseY=null;
   let offsetX=0, offsetY=0;
   let calibrationEyeDist=null;
   let lastDetectTime = 0;
@@ -585,7 +584,7 @@
     // just keep showing the glasses at their last known position instead
     // of flickering them away.
     const stale = Date.now()-faceSeenAt > 1600;
-    if(stale){ eyeL=null; eyeR=null; smoothedDist=null; smoothedTheta=null; smoothEyeL=null; smoothEyeR=null; smoothedFaceWidth=null; smoothedBridgeX=null; smoothedBridgeY=null; poseReady=false; poseNeutralQuat=null; smoothNoseX=null; smoothNoseY=null; }
+    if(stale){ eyeL=null; eyeR=null; smoothedDist=null; smoothedTheta=null; smoothEyeL=null; smoothEyeR=null; smoothedFaceWidth=null; smoothedBridgeX=null; smoothedBridgeY=null; poseReady=false; poseNeutralQuat=null; }
 
     if(glassesGroup){
       if(eyeL && eyeR && lockState === 'tracking'){
@@ -639,23 +638,14 @@
         // user's calibration remains proportional when the face moves.
         const eyeMidX=(smoothEyeL.x+smoothEyeR.x)/2;
         const eyeMidY=(smoothEyeL.y+smoothEyeR.y)/2;
-
-        // V3: responsive bridge/nose anchor. Uses landmarks already captured
-        // by runDetection; camera and MediaPipe initialization are unchanged.
-        const noseLm = window.__lastFaceLandmarks ? window.__lastFaceLandmarks[168] : null;
-        const rawNoseX = noseLm ? noseLm.x*w : eyeMidX;
-        const rawNoseY = noseLm ? noseLm.y*h : eyeMidY;
-        if(smoothNoseX===null){
-          smoothNoseX=rawNoseX; smoothNoseY=rawNoseY;
-        }else{
-          const nd=Math.hypot(rawNoseX-smoothNoseX, rawNoseY-smoothNoseY);
-          const na=Math.min(0.97, 0.72 + Math.min(0.25, nd*18));
-          smoothNoseX += (rawNoseX-smoothNoseX)*na;
-          smoothNoseY += (rawNoseY-smoothNoseY)*na;
-        }
-        const noseBlend=0.45;
-        const anchorX=eyeMidX*(1-noseBlend)+smoothNoseX*noseBlend;
-        const anchorY=eyeMidY*(1-noseBlend)+smoothNoseY*noseBlend;
+        // V3: use the already-tracked MediaPipe bridge point. No new camera,
+        // MediaPipe, or global state is introduced. This reduces positional
+        // lag while retaining the proven V2 eye anchor as the main reference.
+        const bridgeBlend=0.35;
+        const bridgeX = (Number.isFinite(smoothedBridgeX) ? smoothedBridgeX : eyeMidX);
+        const bridgeY = (Number.isFinite(smoothedBridgeY) ? smoothedBridgeY : eyeMidY);
+        const anchorX = eyeMidX*(1-bridgeBlend) + bridgeX*bridgeBlend;
+        const anchorY = eyeMidY*(1-bridgeBlend) + bridgeY*bridgeBlend;
         const offsetScale=calibrationEyeDist ? (smoothedDist/calibrationEyeDist) : 1;
         const cx=anchorX+offsetX*offsetScale;
         const cy=anchorY+offsetY*offsetScale;
