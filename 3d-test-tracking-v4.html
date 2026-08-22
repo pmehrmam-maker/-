@@ -72,8 +72,7 @@
   window.__MP_FaceLandmarker = FaceLandmarker;
 </script>
 <script>
-  // V4_ROTATION_MAPPING: MediaPipe head angles mapped explicitly to Three.js.
-  // Camera, MediaPipe initialization, and V3 position logic are unchanged.
+  // V4: rebuilt from known-good V2. Only head-rotation gain is changed.
 
 (async function(){
   const video = document.getElementById('video');
@@ -641,17 +640,9 @@
         // user's calibration remains proportional when the face moves.
         const eyeMidX=(smoothEyeL.x+smoothEyeR.x)/2;
         const eyeMidY=(smoothEyeL.y+smoothEyeR.y)/2;
-        // V3: use the already-tracked MediaPipe bridge point. No new camera,
-        // MediaPipe, or global state is introduced. This reduces positional
-        // lag while retaining the proven V2 eye anchor as the main reference.
-        const bridgeBlend=0.35;
-        const bridgeX = (Number.isFinite(smoothedBridgeX) ? smoothedBridgeX : eyeMidX);
-        const bridgeY = (Number.isFinite(smoothedBridgeY) ? smoothedBridgeY : eyeMidY);
-        const anchorX = eyeMidX*(1-bridgeBlend) + bridgeX*bridgeBlend;
-        const anchorY = eyeMidY*(1-bridgeBlend) + bridgeY*bridgeBlend;
         const offsetScale=calibrationEyeDist ? (smoothedDist/calibrationEyeDist) : 1;
-        const cx=anchorX+offsetX*offsetScale;
-        const cy=anchorY+offsetY*offsetScale;
+        const cx=eyeMidX+offsetX*offsetScale;
+        const cy=eyeMidY+offsetY*offsetScale;
         glassesGroup.position.set(cx, cy, 0);
         // Keep the existing manual orientation controls, then apply the
         // relative 3D head rotation from MediaPipe.
@@ -661,10 +652,9 @@
         const baseX = axisStep*(Math.PI/2);
         const baseZ = (flipStep===1 ? Math.PI : 0);
         glassesGroup.rotation.set(
-          -smoothPitch * Math.PI / 180,
-          smoothYaw * Math.PI / 180,
-          -smoothRoll * Math.PI / 180,
-          'XYZ'
+          baseX + smoothPitch * 1.00,
+          smoothYaw * 1.00,
+          baseZ + smoothedTheta + smoothRoll * 1.00
         );
         glassesGroup.scale.setScalar(scale);
         glassesGroup.visible = true;
