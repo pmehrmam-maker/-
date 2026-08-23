@@ -643,15 +643,18 @@
         if(faceWidth && faceWidth > 20){
           smoothedFaceWidth = smoothedFaceWidth===null ? faceWidth : smoothedFaceWidth+(faceWidth-smoothedFaceWidth)*adaptiveAlpha(faceWidth-smoothedFaceWidth,0.30,0.70,18);
         }
-                // Fit V3: use interpupillary distance as the single scale anchor.
-        // Correct the apparent shrinkage caused by head yaw so that rotating
-        // the head does not make the glasses change physical size.
+        // Fit V3: use interpupillary distance as the single scale anchor.
         if(calibrationEyeDist===null && smoothedDist>1){
           calibrationEyeDist=smoothedDist;
         }
-        const yawCos=Math.max(0.72, Math.cos(smoothYaw));
-        const correctedEyeDist=smoothedDist/yawCos;
-        const eyeBasedScale=correctedEyeDist/(modelWidthUnits*0.55);
+        // NOTE (rotation v1): removed the previous yaw-based scale
+        // compensation (`smoothedDist / cos(yaw)`). It was inflating the
+        // model's scale specifically to counteract the width-narrowing
+        // that a real 3D yaw rotation produces — which also canceled out
+        // the very visual cue that makes yaw rotation look real. Manual
+        // yaw-slider testing (yaw rotation without this scale term)
+        // confirmed the rotation itself was correct all along.
+        const eyeBasedScale=smoothedDist/(modelWidthUnits*0.55);
         const scale=eyeBasedScale*sizeScale;
 
         // Anchor the glasses to the eye midpoint. Manual offsets are stored
