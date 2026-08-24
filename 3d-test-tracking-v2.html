@@ -404,7 +404,7 @@
       const e=new THREE.Euler().setFromQuaternion(rel,'YXZ');
 
       // Front camera mirror compensation.
-      let yaw=-e.y, pitch=e.x, roll=e.z;
+      let yaw=e.y, pitch=e.x, roll=e.z; // FIX: removed double-mirror negation (canvas CSS already mirrors)
       yaw=Math.max(-1.20,Math.min(1.20,yaw));
       pitch=Math.max(-0.80,Math.min(0.80,pitch));
       roll=Math.max(-1.00,Math.min(1.00,roll));
@@ -453,7 +453,7 @@
 
       const rel=poseNeutralQuat.clone().invert().multiply(q);
       const e=new THREE.Euler().setFromQuaternion(rel,'YXZ');
-      let yaw=-e.y, pitch=e.x, roll=e.z;
+      let yaw=e.y, pitch=e.x, roll=e.z; // FIX: removed double-mirror negation (canvas CSS already mirrors)
       yaw=Math.max(-1.20,Math.min(1.20,yaw));
       pitch=Math.max(-0.80,Math.min(0.80,pitch));
       roll=Math.max(-1.00,Math.min(1.00,roll));
