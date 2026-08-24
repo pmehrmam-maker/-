@@ -280,8 +280,19 @@
   function resizeThree(){
     const w = overlay_w(), h = overlay_h();
     glCanvas.width = w; glCanvas.height = h;
-    camera = new THREE.OrthographicCamera(0, w, 0, h, -2000, 2000);
-    camera.position.z = 500;
+    // Perspective camera (rotation v1): now that MediaPipe gives us real
+    // 3D head pose, a true perspective camera makes rotation look natural
+    // (near/far depth cues) instead of the flat look of orthographic
+    // projection. Distance is chosen so the z=0 plane (where the glasses
+    // sit) still maps 1:1 to pixel coordinates, so all existing
+    // position/scale math (calibrated for orthographic 1:1 mapping)
+    // keeps working unchanged.
+    const fovDeg = 30;
+    const dist = (h/2) / Math.tan((fovDeg/2) * Math.PI/180);
+    camera = new THREE.PerspectiveCamera(fovDeg, w/h, dist*0.1, dist*10);
+    camera.position.set(w/2, h/2, dist);
+    camera.up.set(0, -1, 0);
+    camera.lookAt(w/2, h/2, 0);
     if(renderer) renderer.setSize(w, h, false);
   }
   video.addEventListener('loadedmetadata', resizeThree);
