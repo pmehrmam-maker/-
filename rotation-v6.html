@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rotation V6 — Head Pose 3D Test</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{--bg:#12151c;--panel:#181c26;--line:#2c3140;--brass:#b08d57;--text:#efebe2;--muted:#b9b4a6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif}
+.wrap{max-width:650px;margin:auto;padding:14px}.title{font-size:18px;font-weight:700;margin:4px 0 5px}.sub{font-size:12px;color:var(--muted);margin-bottom:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.stage{position:relative;aspect-ratio:4/3;background:#080a0e}
+video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+video{transform:scaleX(-1)}canvas{transform:scaleX(-1);pointer-events:none}
+.controls{display:flex;gap:8px;padding:13px;border-top:1px solid var(--line);flex-wrap:wrap}
+button{border:0;border-radius:10px;padding:11px 15px;font-size:14px;font-weight:700;font-family:inherit}
+.primary{background:var(--brass);color:#1a1206}.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+.status{padding:10px 14px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+.readout{display:flex;justify-content:space-between;padding:10px 14px;font-size:13px;border-top:1px solid var(--line)}
+.ok{color:#8fc49a}.warn{color:#d8b978}
+.note{font-size:11.5px;color:var(--muted);line-height:1.8;padding:12px 14px 15px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">Rotation V6 — تست چرخش واقعی سه‌بعدی</div>
+  <div class="sub">این نسخه عمداً مستقل از V1/V2/V5 است. ابتدا فقط Head Pose واقعی را به یک مدل سه‌بعدی عینک منتقل می‌کند.</div>
+  <div class="card">
+    <div class="stage"><video id="video" playsinline muted></video><canvas id="overlay"></canvas></div>
+    <div class="controls">
+      <button id="start" class="primary">فعال‌سازی دوربین</button>
+      <button id="reset" class="ghost">تنظیم روبه‌رو</button>
+      <button id="flip" class="ghost">آینه جلو/پشت</button>
+    </div>
+    <div id="status" class="status">دوربین خاموش</div>
+    <div class="readout"><span>Yaw</span><strong id="yaw">0°</strong></div>
+    <div class="readout"><span>Pitch</span><strong id="pitch">0°</strong></div>
+    <div class="readout"><span>Roll</span><strong id="roll">0°</strong></div>
+    <div class="readout"><span>Pose</span><strong id="pose">در انتظار</strong></div>
+    <div class="note">آزمون اصلی: روبه‌رو بایستید و «تنظیم روبه‌رو» را بزنید. سپس فقط سر را به چپ و راست بچرخانید. در این نسخه باید کل فریم، لنزها و دسته‌های سه‌بعدی واقعاً حول محور سر بچرخند؛ نه اینکه فقط جابه‌جا شوند.</div>
+  </div>
+</div>
+
+<script type="module">
+import {FilesetResolver, FaceLandmarker} from './vision_bundle.js';
+window.__FilesetResolver=FilesetResolver;
+window.__FaceLandmarker=FaceLandmarker;
+</script>
+
+<script>
+(async()=>{
+const video=document.getElementById('video'), canvas=document.getElementById('overlay');
+const start=document.getElementById('start'), reset=document.getElementById('reset'), flip=document.getElementById('flip');
+const status=document.getElementById('status'), yawEl=document.getElementById('yaw'), pitchEl=document.getElementById('pitch'), rollEl=document.getElementById('roll'), poseEl=document.getElementById('pose');
+
+let renderer,scene,camera,root,model,landmarker,stream,baseline=null,mirror=true,ready=false;
+const V=new THREE.Vector3(), X=new THREE.Vector3(), Y=new THREE.Vector3(), Z=new THREE.Vector3();
+const baselineQ=new THREE.Quaternion(), currentQ=new THREE.Quaternion(), relativeQ=new THREE.Quaternion();
+
+function makeGlasses(){
+  const g=new THREE.Group();
+  const frameMat=new THREE.MeshStandardMaterial({color:0x8b6b32,metalness:.85,roughness:.24});
+  const lensMat=new THREE.MeshStandardMaterial({color:0x08090b,metalness:.1,roughness:.28,transparent:true,opacity:.93});
+  const templeMat=new THREE.MeshStandardMaterial({color:0x18120a,metalness:.75,roughness:.25});
+
+  function lens(x){
+    const s=new THREE.Shape();
+    const w=30,h=16,r=7;
+    s.moveTo(-w/2+r,-h/2); s.lineTo(w/2-r,-h/2); s.quadraticCurveTo(w/2,-h/2,w/2,-h/2+r);
+    s.lineTo(w/2,h/2-r); s.quadraticCurveTo(w/2,h/2,w/2-r,h/2);
+    s.lineTo(-w/2+r,h/2); s.quadraticCurveTo(-w/2,h/2,-w/2,h/2-r);
+    s.lineTo(-w/2,-h/2+r); s.quadraticCurveTo(-w/2,-h/2,-w/2+r,-h/2);
+    const geom=new THREE.ExtrudeGeometry(s,{depth:1.4,bevelEnabled:true,bevelSize:.7,bevelThickness:.5,bevelSegments:2});
+    const m=new THREE.Mesh(geom,lensMat); m.position.set(x,0,0); return m;
+  }
+  const L=lens(-19,0),R=lens(19,0); g.add(L,R);
+  const bridge=new THREE.Mesh(new THREE.BoxGeometry(9,2.2,2),frameMat); g.add(bridge);
+  // top/bottom frame bars to make 3D rotation obvious
+  [-19,19].forEach(x=>{
+    const top=new THREE.Mesh(new THREE.BoxGeometry(31,1.5,2),frameMat); top.position.set(x,7.8,.9); g.add(top);
+    const bot=new THREE.Mesh(new THREE.BoxGeometry(31,1.5,2),frameMat); bot.position.set(x,-7.8,.9); g.add(bot);
+  });
+  const t1=new THREE.Mesh(new THREE.BoxGeometry(42,2.0,2.0),templeMat); t1.position.set(-39,0,-1.5); g.add(t1);
+  const t2=new THREE.Mesh(new THREE.BoxGeometry(42,2.0,2.0),templeMat); t2.position.set(39,0,-1.5); g.add(t2);
+  g.scale.setScalar(1.35);
+  return g;
+}
+function init3D(){
+  renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+  scene=new THREE.Scene();
+  scene.add(new THREE.AmbientLight(0xffffff,.85));
+  const d=new THREE.DirectionalLight(0xffffff,1.1); d.position.set(.5,.8,2); scene.add(d);
+  camera=new THREE.OrthographicCamera(-160,160,120,-120,-500,500); camera.position.z=300;
+  root=new THREE.Group(); model=makeGlasses(); root.add(model); scene.add(root);
+  root.visible=false;
+  resize();
+}
+function resize(){
+  const w=video.videoWidth||640,h=video.videoHeight||480;
+  canvas.width=w;canvas.height=h;
+  if(renderer) renderer.setSize(w,h,false);
+  if(camera){camera.left=-w/2;camera.right=w/2;camera.top=h/2;camera.bottom=-h/2;camera.updateProjectionMatrix()}
+}
+video.addEventListener('loadedmetadata',resize);
+
+function wait(name){
+ return new Promise((res,rej)=>{let n=0;(function c(){if(window[name])return res(window[name]);if(++n>100)return rej(new Error('MediaPipe module not found'));setTimeout(c,60)})()});
+}
+async function initMP(){
+ const FR=await wait('__FilesetResolver'), FL=await wait('__FaceLandmarker');
+ const vision=await FR.forVisionTasks('.');
+ landmarker=await FL.createFromOptions(vision,{
+   baseOptions:{modelAssetPath:'./face_landmarker.task',delegate:'CPU'},
+   runningMode:'VIDEO',numFaces:1,
+   outputFacialTransformationMatrixes:true
+ });
+ ready=true;status.textContent='MediaPipe آماده';
+}
+function matrixToQuaternion(data){
+  if(!data || data.length!==16) return null;
+  const m=new THREE.Matrix4();m.fromArray(data);
+  const q=new THREE.Quaternion().setFromRotationMatrix(m);
+  return q;
+}
+function setBaseline(q){baselineQ.copy(q);baseline= true;status.textContent='مرجع روبه‌رو ثبت شد';}
+function relativeOrientation(q){
+  if(!baseline){setBaseline(q);return new THREE.Quaternion()}
+  return relativeQ.copy(baselineQ).invert().multiply(q).normalize();
+}
+function displayAngles(q){
+  const e=new THREE.Euler().setFromQuaternion(q,'YXZ');
+  let yaw=THREE.MathUtils.radToDeg(e.y);
+  let pitch=THREE.MathUtils.radToDeg(e.x);
+  let roll=THREE.MathUtils.radToDeg(e.z);
+  // mirrored preview: visual yaw is opposite of camera-space yaw
+  if(mirror) yaw=-yaw;
+  yawEl.textContent=Math.round(yaw)+'°';pitchEl.textContent=Math.round(pitch)+'°';rollEl.textContent=Math.round(roll)+'°';
+  return {yaw,pitch,roll};
+}
+function detect(now){
+ if(!ready)return;
+ const r=landmarker.detectForVideo(video,now);
+ if(!r.faceLandmarks?.length){poseEl.textContent='چهره پیدا نشد';return}
+ const mats=r.facialTransformationMatrixes;
+ if(!mats?.length){poseEl.textContent='Matrix موجود نیست';return}
+ const data=mats[0].data || mats[0];
+ const q=matrixToQuaternion(data);
+ if(!q)return;
+ const rq=relativeOrientation(q);
+ const a=displayAngles(rq);
+ // Apply the relative orientation as ONE quaternion to ONE root.
+ // A 180° flip around Y keeps the procedural model facing the camera convention.
+ const visualQ=rq.clone();
+ if(mirror) visualQ.y*=-1;
+ root.quaternion.slerp(visualQ,.28);
+ // translation from stable nose/eye center
+ const lm=r.faceLandmarks[0], w=video.videoWidth||640,h=video.videoHeight||480;
+ const p1=lm[1]||lm[4], p2=lm[33], p3=lm[263];
+ const cx=((p1.x+p2.x+p3.x)/3-.5)*w;
+ const cy=(.5-(p1.y+p2.y+p3.y)/3)*h;
+ const eyeDist=Math.hypot((p2.x-p3.x)*w,(p2.y-p3.y)*h);
+ const s=THREE.MathUtils.clamp(eyeDist/38,.7,2.2);
+ root.position.set(cx,cy,0); root.scale.setScalar(s);
+ root.visible=true;poseEl.textContent=`Yaw ${Math.round(a.yaw)}° / Pitch ${Math.round(a.pitch)}° / Roll ${Math.round(a.roll)}°`;
+}
+function loop(t){
+ if(video.readyState>=2)detect(t||performance.now());
+ if(renderer&&camera)renderer.render(scene,camera);
+ requestAnimationFrame(loop);
+}
+start.onclick=async()=>{
+ try{
+   start.disabled=true;status.textContent='در حال فعال‌سازی...';
+   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+   video.srcObject=stream;await video.play();resize();init3D();await initMP();
+   status.textContent='فعال — روبه‌رو قرار بگیرید و «تنظیم روبه‌رو» را بزنید';
+   loop();
+ }catch(e){status.textContent='خطا: '+(e.message||e);start.disabled=false}
+};
+reset.onclick=()=>{
+ baseline=null;root.quaternion.identity();status.textContent='مرجع پاک شد — روبه‌رو نگاه کنید';
+};
+flip.onclick=()=>{
+ mirror=!mirror;video.style.transform=mirror?'scaleX(-1)':'none';canvas.style.transform=mirror?'scaleX(-1)':'none';
+ status.textContent=mirror?'حالت آینه‌ای':'حالت غیرآینه‌ای';
+};
+})();
+</script>
+</body>
+</html>
