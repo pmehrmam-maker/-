@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Head Pose Diagnostic V1</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{--bg:#12151c;--panel:#181c26;--line:#303644;--text:#eeeae1;--dim:#b9b4a6;--gold:#b08d57;--ok:#7fb88b;--bad:#d08370}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif;padding:14px}
+.wrap{max-width:650px;margin:auto}.title{font-size:19px;font-weight:700;margin:5px 0}.sub{font-size:12px;color:var(--dim);line-height:1.8;margin-bottom:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.video{position:relative;width:100%;aspect-ratio:4/3;background:#080a0e}
+video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+video{transform:scaleX(-1)} canvas{transform:scaleX(-1);pointer-events:none}
+.controls{display:flex;gap:8px;padding:14px;flex-wrap:wrap;border-top:1px solid var(--line)}
+button{border-radius:10px;padding:11px 14px;font-weight:700;font-size:13px;border:1px solid var(--line);background:transparent;color:var(--text)}
+.primary{background:var(--gold);color:#1a1206;border:0}
+.status{padding:10px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--dim)}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 14px}
+.metric{border:1px solid var(--line);border-radius:10px;padding:12px 8px;text-align:center}
+.metric b{display:block;font-size:23px;margin-top:4px}.metric span{font-size:12px;color:var(--dim)}
+.note{padding:0 14px 14px;font-size:12px;color:var(--dim);line-height:1.9}
+pre{direction:ltr;text-align:left;white-space:pre-wrap;font-size:10px;color:#bbb;padding:0 14px 14px;margin:0}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">تست Head Pose — V1 Diagnostic</div>
+  <div class="sub">
+    این نسخه عمداً <b>هیچ عینکی رندر نمی‌کند</b>. فقط بررسی می‌کند MediaPipe واقعاً
+    Yaw / Pitch / Roll را از ماتریس سه‌بعدی صورت می‌دهد یا نه.
+  </div>
+
+  <div class="card">
+    <div class="video">
+      <video id="video" playsinline muted></video>
+      <canvas id="landmarks"></canvas>
+    </div>
+
+    <div class="controls">
+      <button class="primary" id="start">فعال‌سازی دوربین</button>
+      <button id="calibrate">تنظیم روبه‌رو = صفر</button>
+      <button id="flip">آینه</button>
+    </div>
+
+    <div class="status" id="status">MediaPipe: در انتظار</div>
+
+    <div class="grid">
+      <div class="metric"><span>Yaw</span><b id="yaw">0°</b></div>
+      <div class="metric"><span>Pitch</span><b id="pitch">0°</b></div>
+      <div class="metric"><span>Roll</span><b id="roll">0°</b></div>
+    </div>
+
+    <div class="note" id="matrixStatus">
+      ماتریس تبدیل: در انتظار تشخیص چهره
+    </div>
+    <pre id="raw">نتیجه خام: —</pre>
+  </div>
+
+  <div class="note" style="margin-top:12px">
+    <b>آزمون:</b> اول روبه‌رو بایست و «تنظیم روبه‌رو = صفر» را بزن.
+    سپس فقط سر را به راست، چپ، بالا، پایین و در پایان به دو طرف خم کن.
+    اگر اعداد تغییر کنند، مرحله Head Pose حل شده و بعد همان خروجی را به GLB وصل می‌کنیم.
+  </div>
+</div>
+
+<script type="module">
+import {FilesetResolver, FaceLandmarker} from './vision_bundle.js';
+window.__FilesetResolver = FilesetResolver;
+window.__FaceLandmarker = FaceLandmarker;
+</script>
+
+<script>
+(async function(){
+  const video=document.getElementById('video');
+  const canvas=document.getElementById('landmarks');
+  const ctx=canvas.getContext('2d');
+  const status=document.getElementById('status');
+  const matrixStatus=document.getElementById('matrixStatus');
+  const raw=document.getElementById('raw');
+  const yawEl=document.getElementById('yaw');
+  const pitchEl=document.getElementById('pitch');
+  const rollEl=document.getElementById('roll');
+
+  let landmarker=null, stream=null, running=false, mirror=true;
+  let baseline=null, lastTs=0, lastResult=null;
+
+  function setStatus(t,good=false,bad=false){
+    status.textContent=t;
+    status.className='status '+(good?'ok':'')+(bad?' bad':'');
+  }
+  function deg(r){return r*180/Math.PI}
+  function wrap(a){ while(a>180)a-=360; while(a<-180)a+=360; return a }
+  function waitFor(name){
+    return new Promise((resolve,reject)=>{
+      const t0=Date.now();
+      const f=()=>{
+        if(window[name]) return resolve(window[name]);
+        if(Date.now()-t0>10000) return reject(new Error(name+' load timeout'));
+        setTimeout(f,50);
+      }; f();
+    });
+  }
+
+  async function init(){
+    setStatus('MediaPipe: در حال بارگذاری...');
+    const FilesetResolver=await waitFor('__FilesetResolver');
+    const FaceLandmarker=await waitFor('__FaceLandmarker');
+    const vision=await FilesetResolver.forVisionTasks('.');
+    landmarker=await FaceLandmarker.createFromOptions(vision,{
+      baseOptions:{
+        modelAssetPath:'./face_landmarker-1.task',
+        delegate:'CPU'
+      },
+      runningMode:'VIDEO',
+      numFaces:1,
+      minFaceDetectionConfidence:0.5,
+      minFacePresenceConfidence:0.5,
+      minTrackingConfidence:0.5,
+      outputFacialTransformationMatrixes:true
+    });
+    setStatus('MediaPipe: آماده — دوربین را فعال کنید',true);
+  }
+
+  function resize(){
+    const w=video.videoWidth||640,h=video.videoHeight||480;
+    canvas.width=w;canvas.height=h;
+  }
+
+  function drawFace(lm){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(!lm)return;
+    ctx.save();
+    if(mirror){ctx.translate(canvas.width,0);ctx.scale(-1,1)}
+    ctx.strokeStyle='#d8b978';ctx.lineWidth=2;
+    const pts=[33,263,1,168,6,10,152];
+    for(const i of pts){
+      const p=lm[i]; if(!p)continue;
+      ctx.beginPath();ctx.arc(p.x*canvas.width,p.y*canvas.height,4,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function extractEuler(result){
+    const arr=result.facialTransformationMatrixes;
+    if(!arr || !arr.length) return null;
+    const d=arr[0].data || arr[0];
+    if(!d || d.length!==16) return null;
+
+    const m=new THREE.Matrix4().fromArray(d);
+    const e=new THREE.Euler().setFromRotationMatrix(m,'YXZ');
+    return {x:e.x,y:e.y,z:e.z,matrix:Array.from(d)};
+  }
+
+  function update(result){
+    lastResult=result;
+    const lm=result.faceLandmarks?.[0];
+    drawFace(lm);
+
+    const p=extractEuler(result);
+    if(!p){
+      matrixStatus.textContent='ماتریس تبدیل: دریافت نشد ❌';
+      matrixStatus.className='note bad';
+      return;
+    }
+
+    let y=deg(p.y), x=deg(p.x), z=deg(p.z);
+    if(baseline){
+      y=wrap(y-baseline.y);
+      x=wrap(x-baseline.x);
+      z=wrap(z-baseline.z);
+    }
+
+    // Front-camera mirror: horizontal head turn is visually reversed.
+    const displayYaw=mirror ? -y : y;
+
+    yawEl.textContent=Math.round(displayYaw)+'°';
+    pitchEl.textContent=Math.round(x)+'°';
+    rollEl.textContent=Math.round(z)+'°';
+
+    matrixStatus.innerHTML='ماتریس تبدیل: <b class="ok">دریافت شد ✓</b> — داده 4×4 معتبر است';
+    raw.textContent='raw matrix:\\n'+p.matrix.map((v,i)=>
+      Number(v).toFixed(4)+(i%4===3?'\\n':'  ')
+    ).join('');
+
+    setStatus('FaceLandmarker: فعال — Matrix Pose در حال اندازه‌گیری',true);
+  }
+
+  async function loop(){
+    if(!running)return;
+    try{
+      if(video.readyState>=2 && landmarker){
+        const ts=Math.max(performance.now(),lastTs+1); lastTs=ts;
+        const result=landmarker.detectForVideo(video,ts);
+        update(result);
+      }
+    }catch(e){
+      setStatus('خطا در تشخیص: '+(e.message||e),false,true);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('start').onclick=async()=>{
+    try{
+      if(!landmarker)await init();
+      stream=await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},
+        audio:false
+      });
+      video.srcObject=stream;
+      await video.play();
+      resize();
+      running=true;
+      requestAnimationFrame(loop);
+      setStatus('دوربین فعال — روبه‌رو بایستید',true);
+    }catch(e){setStatus('خطا: '+(e.message||e),false,true)}
+  };
+
+  document.getElementById('calibrate').onclick=()=>{
+    if(!lastResult){setStatus('ابتدا چهره باید شناسایی شود',false,true);return}
+    const p=extractEuler(lastResult);
+    if(!p){setStatus('ماتریس هنوز آماده نیست',false,true);return}
+    baseline={y:deg(p.y),x:deg(p.x),z:deg(p.z)};
+    setStatus('مرجع روبه‌رو ثبت شد — حالا سر را حرکت دهید',true);
+  };
+
+  document.getElementById('flip').onclick=()=>{
+    mirror=!mirror;
+    video.style.transform=mirror?'scaleX(-1)':'scaleX(1)';
+    canvas.style.transform=mirror?'scaleX(-1)':'scaleX(1)';
+  };
+
+  try{await init()}catch(e){setStatus('MediaPipe: خطا — '+(e.message||e),false,true)}
+})();
+</script>
+</body>
+</html>
