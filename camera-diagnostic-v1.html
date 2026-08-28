@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Camera Diagnostic V1</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#111;color:#eee;font-family:Arial,sans-serif;padding:16px}
+.wrap{max-width:650px;margin:auto}
+h2{font-size:20px;margin:4px 0 8px}
+p{font-size:13px;line-height:1.8;color:#bbb}
+.card{background:#1b1b1b;border:1px solid #333;border-radius:14px;overflow:hidden}
+.stage{position:relative;background:#000;aspect-ratio:4/3}
+video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
+.status{padding:14px;font-size:13px;border-top:1px solid #333;line-height:1.8}
+button{margin:12px 0 0;padding:12px 18px;border:0;border-radius:10px;font-weight:bold;font-size:14px}
+#start{background:#c49a5a;color:#111}
+#stop{background:#333;color:#eee;margin-right:8px}
+.ok{color:#8ed09b}.err{color:#e58b7a}
+pre{direction:ltr;text-align:left;white-space:pre-wrap;font-size:11px;color:#aaa}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h2>تست مستقل دوربین V1</h2>
+<p>این صفحه عمداً هیچ MediaPipe، Three.js یا GLB ندارد. فقط بررسی می‌کند که GitHub Pages و مرورگر بتوانند دوربین گوشی را فعال کنند.</p>
+
+<div class="card">
+<div class="stage"><video id="video" autoplay playsinline muted></video></div>
+<div class="status" id="status">آماده — روی «فعال‌سازی دوربین» بزنید.</div>
+</div>
+
+<button id="start">فعال‌سازی دوربین</button>
+<button id="stop">خاموش کردن</button>
+<pre id="debug"></pre>
+</div>
+
+<script>
+(function(){
+  const video=document.getElementById('video');
+  const status=document.getElementById('status');
+  const debug=document.getElementById('debug');
+  let stream=null;
+
+  function show(text,cls){
+    status.textContent=text;
+    status.className='status '+(cls||'');
+  }
+
+  function info(){
+    const secure=window.isSecureContext;
+    const gum=navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+    debug.textContent =
+      'HTTPS / Secure Context: '+secure+'\\n'+
+      'mediaDevices: '+!!navigator.mediaDevices+'\\n'+
+      'getUserMedia: '+!!gum+'\\n'+
+      'User Agent: '+navigator.userAgent;
+  }
+
+  async function start(){
+    info();
+    if(!window.isSecureContext){
+      show('خطا: این صفحه در محیط امن HTTPS اجرا نشده است.','err');
+      return;
+    }
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      show('خطا: مرورگر getUserMedia را در این محیط ارائه نمی‌کند.','err');
+      return;
+    }
+
+    try{
+      show('در حال درخواست اجازه دوربین...');
+      stream=await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:{ideal:'user'}},
+        audio:false
+      });
+      video.srcObject=stream;
+      await video.play();
+      show('دوربین با موفقیت فعال شد ✓','ok');
+      info();
+    }catch(e){
+      show('دوربین فعال نشد: '+(e.name||'Error')+' — '+(e.message||''),'err');
+      debug.textContent += '\\n\\nERROR:\\n'+(e.stack||String(e));
+    }
+  }
+
+  function stop(){
+    if(stream){
+      stream.getTracks().forEach(t=>t.stop());
+      stream=null;
+    }
+    video.srcObject=null;
+    show('دوربین خاموش شد.');
+  }
+
+  document.getElementById('start').addEventListener('click',start);
+  document.getElementById('stop').addEventListener('click',stop);
+  info();
+})();
+</script>
+</body>
+</html>
