@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>MediaPipe Diagnostic V1</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#111;color:#eee;font-family:Arial,sans-serif;padding:14px}
+.wrap{max-width:650px;margin:auto}h2{font-size:19px;margin:4px 0 7px}.sub{font-size:12px;color:#aaa;line-height:1.8;margin-bottom:10px}
+.card{background:#1a1a1a;border:1px solid #333;border-radius:14px;overflow:hidden}.stage{position:relative;aspect-ratio:4/3;background:#000}
+video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}video{transform:scaleX(-1)}canvas{pointer-events:none}
+.controls{padding:12px;border-top:1px solid #333}.controls button{padding:11px 14px;margin-left:7px;border:0;border-radius:9px;font-weight:bold}
+#start{background:#c49a5a;color:#111}#stop{background:#333;color:#eee}
+.status{padding:11px 13px;border-top:1px solid #333;font-size:12px;line-height:1.8}.ok{color:#8ed09b}.err{color:#e58b7a}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:11px}.m{border:1px solid #333;border-radius:9px;text-align:center;padding:9px}.m span{font-size:11px;color:#aaa}.m b{display:block;font-size:22px;margin-top:4px}
+pre{direction:ltr;text-align:left;white-space:pre-wrap;color:#aaa;font-size:10px;padding:0 13px 13px;margin:0}
+</style></head><body><div class="wrap">
+<h2>تست MediaPipe — Head Pose V1</h2>
+<div class="sub">این نسخه دوربین را جداگانه و سپس MediaPipe را تست می‌کند. عینک و GLB عمداً حذف شده‌اند.</div>
+<div class="card">
+<div class="stage"><video id="v" autoplay playsinline muted></video><canvas id="c"></canvas></div>
+<div class="controls"><button id="start">فعال‌سازی دوربین</button><button id="stop">خاموش کردن</button></div>
+<div id="status" class="status">آماده</div>
+<div class="grid"><div class="m"><span>Yaw</span><b id="y">0°</b></div><div class="m"><span>Pitch</span><b id="p">0°</b></div><div class="m"><span>Roll</span><b id="r">0°</b></div></div>
+<pre id="debug">—</pre></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script><script type="module">
+import {FilesetResolver,FaceLandmarker} from "./vision_bundle.js";
+window.FSR=FilesetResolver;window.FL=FaceLandmarker;
+</script>
+<script>
+(async()=>{
+const v=document.getElementById("v"),c=document.getElementById("c"),x=c.getContext("2d"),st=document.getElementById("status"),dbg=document.getElementById("debug");
+let lm=null,stream=null,running=false,last=0,base=null;
+const wait=n=>new Promise((res,rej)=>{let t=Date.now();(function f(){if(window[n])return res(window[n]);if(Date.now()-t>10000)return rej(Error(n+" timeout"));setTimeout(f,50)})()});
+function msg(t,cls=""){st.textContent=t;st.className="status "+cls}
+function euler(a){
+ if(!a||a.length!==16)return null;
+ const m=new THREE.Matrix4().fromArray(Array.from(a)),e=new THREE.Euler().setFromRotationMatrix(m,"YXZ");
+ return {x:e.x*180/Math.PI,y:e.y*180/Math.PI,z:e.z*180/Math.PI,m:Array.from(a)}
+}
+function loop(){
+ if(!running)return;
+ try{
+  const now=Math.max(Date.now(),last+1);last=now;const q=lm.detectForVideo(v,now);
+  if(q.faceLandmarks?.[0]){
+   const f=q.facialTransformationMatrixes?.[0],a=f?.data||f,p=euler(a);
+   x.clearRect(0,0,c.width,c.height);const pts=q.faceLandmarks[0];
+   x.save();x.translate(c.width,0);x.scale(-1,1);x.strokeStyle="#d8b978";x.lineWidth=2;
+   [1,33,263,168,6,152].forEach(i=>{let z=pts[i];if(z){x.beginPath();x.arc(z.x*c.width,z.y*c.height,4,0,Math.PI*2);x.stroke()}});x.restore();
+   if(p){let Y=p.y,X=p.x,Z=p.z;if(base){Y-=base.y;X-=base.x;Z-=base.z}
+    document.getElementById("y").textContent=Math.round(-Y)+"°";document.getElementById("p").textContent=Math.round(X)+"°";document.getElementById("r").textContent=Math.round(Z)+"°";
+    dbg.textContent="MediaPipe: FaceLandmarker OK\\nMatrix 4×4: دریافت شد\\nfaceLandmarks: "+q.faceLandmarks.length;
+   }else dbg.textContent="Face detected، اما Transformation Matrix دریافت نشد.";
+   msg("MediaPipe فعال — چهره شناسایی شد","ok");
+  }else msg("دوربین فعال است — چهره پیدا نشد");
+ }catch(err){msg("خطای MediaPipe: "+(err.message||err),"err");dbg.textContent=err.stack||String(err)}
+ requestAnimationFrame(loop)
+}
+async function start(){
+ try{
+  msg("در حال باز کردن دوربین...");
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"},audio:false});v.srcObject=stream;await v.play();c.width=v.videoWidth||640;c.height=v.videoHeight||480;
+  msg("دوربین فعال — در حال بارگذاری MediaPipe...");
+  const F=await wait("FSR"),L=await wait("FL"),vision=await F.forVisionTasks(".");
+  lm=await L.createFromOptions(vision,{baseOptions:{modelAssetPath:"./face_landmarker-1.task",delegate:"CPU"},runningMode:"VIDEO",numFaces:1,minFaceDetectionConfidence:.2,minFacePresenceConfidence:.2,minTrackingConfidence:.2,outputFacialTransformationMatrixes:true});
+  running=true;msg("MediaPipe آماده — صورت را روبه‌رو نگه دارید","ok");requestAnimationFrame(loop);
+ }catch(err){msg("خطا: "+(err.name||"Error")+" — "+(err.message||err),"err");dbg.textContent=err.stack||String(err)}
+}
+document.getElementById("start").onclick=start;
+document.getElementById("stop").onclick=()=>{running=false;if(stream)stream.getTracks().forEach(t=>t.stop());v.srcObject=null;msg("دوربین خاموش شد")};
+document.getElementById("calibrate")?.addEventListener("click",()=>{});
+try{await wait("FSR");msg("MediaPipe آماده — دوربین را فعال کنید","ok")}catch(e){msg("MediaPipe در صفحه بارگذاری نشد: "+e.message,"err")}
+})();
+</script>
+</body></html>
